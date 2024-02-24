@@ -3,7 +3,7 @@
 // Params for the chatbot (front and server)
 
 define( 'MWAI_CHATBOT_FRONT_PARAMS', [ 'id', 'customId', 'aiName', 'userName', 'guestName',
-	'textSend', 'textClear', 'imageUpload', 
+	'textSend', 'textClear', 'imageUpload', 'fileUpload',
 	'textInputPlaceholder', 'textInputMaxLength', 'textCompliance', 'startSentence', 'localMemory',
 	'themeId', 'window', 'icon', 'iconText', 'iconAlt', 'iconPosition', 'fullscreen', 'copyButton'
 ] );
@@ -88,7 +88,7 @@ class Meow_MWAI_Modules_Chatbot {
 		$customId = $params['customId'] ?? null;
 		$stream = $params['stream'] ?? false;
 		$newMessage = trim( $params['newMessage'] ?? '' );
-		$newImageId = $params['newImageId'] ?? null;
+		$newFileId = $params['newFileId'] ?? null;
 
 		if ( !$this->basics_security_check( $botId, $customId, $newMessage )) {
 			return new WP_REST_Response( [ 
@@ -98,7 +98,7 @@ class Meow_MWAI_Modules_Chatbot {
 		}
 
 		try {
-			$data = $this->chat_submit( $botId, $newMessage, $newImageId, $params, $stream );
+			$data = $this->chat_submit( $botId, $newMessage, $newFileId, $params, $stream );
 			return new WP_REST_Response( [
 				'success' => true,
 				'reply' => $data['reply'],
@@ -115,7 +115,7 @@ class Meow_MWAI_Modules_Chatbot {
 		}
 	}
 
-	public function chat_submit( $botId, $newMessage, $newImageId, $params = [], $stream = false ) {
+	public function chat_submit( $botId, $newMessage, $newFileId, $params = [], $stream = false ) {
 		try {
 			$chatbot = null;
 			$customId = $params['customId'] ?? null;
@@ -131,6 +131,11 @@ class Meow_MWAI_Modules_Chatbot {
 
 			if ( !$chatbot ) {
 				error_log("AI Engine: No chatbot was found for this query.");
+				throw new Exception( 'Sorry, your query has been rejected.' );
+			}
+
+			$textInputMaxLength = $chatbot['textInputMaxLength'] ?? null;
+			if ( $textInputMaxLength && strlen( $newMessage ) > (int)$textInputMaxLength ) {
 				throw new Exception( 'Sorry, your query has been rejected.' );
 			}
 			
@@ -171,15 +176,42 @@ class Meow_MWAI_Modules_Chatbot {
 				$query->inject_params( $params );
 
 				// Support for Uploaded Image
-				if ( !empty( $newImageId ) ) {
-					$remote_upload = $this->core->get_option( 'image_remote_upload' );
-					if ( $remote_upload === 'data' ) {
-						$data = $this->core->files->get_base64_data( $newImageId );
-						$query->set_image_data( $data );
+				if ( !empty( $newFileId ) ) {
+
+					if ( $mode === 'assistant' ) {
+						// This is for Assistant
+						$url = $this->core->files->get_path( $newFileId );
+						$data = $this->core->files->get_data( $newFileId );
+						$openai = Meow_MWAI_Engines_Factory::get_openai( $this->core, $query->envId );
+						$filename = basename( $url );
+						$file = $openai->upload_file( $filename, $data, 'assistants' );
+						$openAiRefId = $file['id'];
+						$internalFileId = $this->core->files->get_id_from_refId( $newFileId );
+        		$this->core->files->update_refId( $internalFileId, $openAiRefId );
+						$this->core->files->update_envId( $internalFileId, $query->envId );
+						$newFileId = $openAiRefId;
+						$scope = $params['fileUpload'];
+						if ( $scope === 'discussion' || $scope === 'user' || $scope === 'assistant' ) {
+							$id = $this->core->files->get_id_from_refId( $newFileId );
+							$this->core->files->add_metadata( $id, 'assistant_scope', $scope );
+						}
+						$query->set_file( $openAiRefId, 'refId', 'assistant-in' );
 					}
 					else {
-						$url = $this->core->files->get_url( $newImageId );
-						$query->set_image( $url );
+						// This is for Vision AI
+						$remote_upload = $this->core->get_option( 'image_remote_upload' );
+						if ( $remote_upload === 'data' ) {
+							$data = $this->core->files->get_base64_data( $newFileId );
+							$query->set_file( $data, 'data', 'vision' );
+						}
+						else {
+							$url = $this->core->files->get_url( $newFileId );
+							$query->set_file( $url, 'url', 'vision' );
+						}
+						$fileId = $this->core->files->get_id_from_refId( $newFileId );
+						$this->core->files->update_envId( $fileId, $query->envId );
+						$this->core->files->add_metadata( $fileId, 'query_envId', $query->envId );
+						$this->core->files->add_metadata( $fileId, 'query_session', $query->session );
 					}
 				}
 
@@ -230,7 +262,7 @@ class Meow_MWAI_Modules_Chatbot {
 				ob_end_flush();
 			}
 
-			$reply = $this->core->run_query( $query, $streamCallback );
+			$reply = $this->core->run_query( $query, $streamCallback, true );
 			$rawText = $reply->result;
 			$extra = [];
 			if ( $context ) {

@@ -168,6 +168,7 @@ i18n.COMMON = {
   DELETE: __( 'Delete', 'ai-engine' ),
   DELETE_ALL: __( 'Delete All', 'ai-engine' ),
   DELETE_SELECTED: __( 'Delete Selected', 'ai-engine' ),
+  OPENAI_ORGANIZATION_ID: __( 'Organization ID', 'ai-engine' ),
   OPENAI_AZURE_ENDPOINT: __( 'Endpoint', 'ai-engine' ),
   OPENAI_AZURE_API_KEY: __( 'API Key', 'ai-engine' ),
   OPENAI_AZURE_DEPLOYMENT_NAME: __( 'Deployment Name', 'ai-engine' ),
@@ -219,12 +220,19 @@ i18n.COMMON = {
   PLUGIN_DATA_DESCRIPTION: __( "The database and all the options of the plugin will be removed on uninstall.", 'ai-engine' ),
   RESET_LIMITS: __( 'Reset Limits', 'ai-engine' ),
   VISION: __( 'Vision', 'ai-engine' ),
+  FILE_UPLOAD: __( 'File Upload', 'ai-engine' ),
   PROMPT_TO_JSON: __( 'Prompt ➡ JSON', 'ai-engine' ),
   RESOLUTION: __( 'Resolution', 'ai-engine' ),
   DEFAULT: __( 'Default', 'ai-engine' ),
   REFRESH_MODELS: __( 'Refresh Models', 'ai-engine' ),
   AUDIO: __( 'Audio', 'ai-engine' ),
   JSON: __( 'JSON', 'ai-engine' ),
+  FILES: __( 'Files', 'ai-engine' ),
+  AI_ENVIRONMENT: __( 'AI Environment', 'ai-engine' ),
+  OVERRIDE_DEFAULTS: __( 'Override Defaults', 'ai-engine' ),
+  REGION: __( 'Region', 'ai-engine' ),
+  PROJECT_ID: __( 'Project ID', 'ai-engine' ),
+  
 };
 
 i18n.FORMS = {
@@ -263,12 +271,13 @@ i18n.HELP = {
   PUBLIC_API: __( 'Enable the Public REST API. By default, it will be accessible to everyone.', 'ai-engine' ),
   INTRO_MESSAGE: __( 'Enable the introduction text at the top of this page.', 'ai-engine' ),
   OPENAI_API_KEY: __( 'You can get your API Keys in your <a href="https://beta.openai.com/account/api-keys" target="_blank">OpenAI Account</a>.', 'ai-engine' ),
+  OPENAI_ORGANIZATION_ID: __( 'You can link this environment to an <a href="https://platform.openai.com/account/organization" target="_blank">Organization</a>. This is optional.', 'ai-engine' ),
   AZURE_API_KEY: __( 'You can get your API Keys in your <a href="https://oai.azure.com/portal" target="_blank">Azure Account</a>.', 'ai-engine' ),
   OPENROUTER_API_KEY: __( 'You can get your API Keys in your <a href="https://openrouter.ai/keys" target="_blank">OpenRouter Account</a>.', 'ai-engine' ),
   QDRANT: __( 'Use the code <b>#AIENGINE5</b> when you <a href="https://qdrant.to/cloud" target="_blank">Create a Qdrant Account</a>. You will get 5% off.', 'ai-engine' ),
   ASSISTANTS: __( 'The Assistants API is designed to help developers build powerful AI assistants capable of performing a variety of tasks.', 'ai-engine' ),
-  ASSISTANTS_INTRO: __( 'The Assistants API is designed to help developers build powerful AI assistants capable of performing a variety of tasks. They are in beta both in OpenAI and AI Engine. To create them, head to the <a href="https://beta.openai.com/assistants" target="_blank">OpenAI Assistants</a> dashboard, then <b>Refresh Assistants</b> here. You can use an assistant in your chatbots by switching the <b>Mode</b> to <b>Assistant</b>.', 'ai-engine' ),
-  ASSISTANTS_WARNINGS: __( 'Currently, OpenAI does not support streaming for its Assistants. Pricing is also different and <a href="https://openai.com/pricing" target="_blank">a bit tricky</a>, AI Engine does only an estimation.', 'ai-engine' ),
+  ASSISTANTS_INTRO: __( 'The Assistants API is designed to help developers build powerful AI assistants capable of performing a variety of tasks. To create them, head to the <a href="https://beta.openai.com/assistants" target="_blank">OpenAI Assistants</a> dashboard, then <b>Refresh Assistants</b> here. You can use an assistant in your chatbots by switching the <b>Mode</b> to <b>Assistant</b>.', 'ai-engine' ),
+  ASSISTANTS_WARNINGS: __( 'Assistants are also <a href="https://platform.openai.com/docs/api-reference/assistants" target="_blank">in beta</a>, both for OpenAI and AI Engine. OpenAI did not add streaming support for them yet. Pricing is still quite unclear and <a href="https://openai.com/pricing" target="_blank">tricky</a>. AI Engine can only perform an estimation. If you want to discuss assistants with other users, visit the <a href="https://discord.gg/bHDGh38" target="_blank">Meow Apps Discord Server</a>.', 'ai-engine' ),
 };
 
 i18n.SETTINGS = {

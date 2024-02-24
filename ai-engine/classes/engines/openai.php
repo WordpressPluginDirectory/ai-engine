@@ -5,6 +5,7 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
   // Base (OpenAI)
   protected $apiKey = null;
   protected $endpoint = null;
+  protected $organizationId = null;
 
   // Azure
   private $azureDeployments = null;
@@ -32,6 +33,7 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
     $this->apiKey = $env['apikey'];
     if ( $this->envType === 'openai' ) {
       $this->endpoint = apply_filters( 'mwai_openai_endpoint', 'https://api.openai.com/v1', $this->env );
+      $this->organizationId = isset( $env['organizationId'] ) ? $env['organizationId'] : null;
     }
     else if ( $this->envType === 'azure' ) {
       $this->endpoint = isset( $env['endpoint'] ) ? $env['endpoint'] : null;
@@ -122,8 +124,8 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
     }
 
     // Finally, we need to add the message, but if there is an image, we need to add it as a system message.
-    $imageUrl = $query->get_image_url();
-    if ( !empty( $imageUrl ) ) {
+    $fileUrl = $query->get_file_url();
+    if ( !empty( $fileUrl ) ) {
       $messages[] = [ 
         'role' => 'user',
         'content' => [
@@ -133,7 +135,7 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
           ],
           [
             "type" => "image_url",
-            "image_url" => [ "url" => $imageUrl ]
+            "image_url" => [ "url" => $fileUrl ]
           ]
         ]
       ];
@@ -246,6 +248,9 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
       'Content-Type' => 'application/json',
       'Authorization' => 'Bearer ' . $this->apiKey,
     );
+    if ( $this->organizationId ) {
+      $headers['OpenAI-Organization'] = $this->organizationId;
+    }
     if ( $this->envType === 'azure' ) {
       $headers = array( 'Content-Type' => 'application/json', 'api-key' => $this->apiKey );
     }
@@ -579,26 +584,19 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
       $reply->set_usage( $usage );
       $reply->set_choices( $choices );
       $reply->set_type( 'images' );
-
-      // Transfer the images to the local server if needed.
-      $localDownload = $this->core->get_option( 'image_local_download' );
-      $expiresDownload = $this->core->get_option( 'image_expires_download' );
-
-      // if $localDownload is either uploads or library
-      if ( $localDownload === 'uploads' || $localDownload === 'library' ) {
+      
+      if ( $query->localDownload === 'uploads' || $query->localDownload === 'library' ) {
         foreach ( $reply->results as &$result ) {
-          $fileId = $this->core->files->commit_file( $result, $localDownload, $expiresDownload );
+          $fileId = $this->core->files->upload_file( $result, null, 'generated', [
+            'query_envId' => $query->envId,
+            'query_session' => $query->session,
+            'query_model' => $query->model,
+          ], $query->envId, $query->localDownload, $query->localDownloadExpiry );
           $fileUrl = $this->core->files->get_url( $fileId );
           $result = $fileUrl;
         }
       }
-
-      // Convert the URLs into Markdown.
-      $reply->result = "";
-      foreach ( $reply->results as $result ) {
-        $reply->result .= "![Image]($result)\n";
-      }
-
+      $reply->result = $reply->results[0];
       return $reply;
     }
     catch ( Exception $e ) {
@@ -751,10 +749,10 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
     return $result;
   }
 
-  public function upload_file( $filename, $data )
+  public function upload_file( $filename, $data, $purpose = 'fine-tune' )
   {
     $result = $this->execute('POST', '/files', null, [
-      'purpose' => 'fine-tune',
+      'purpose' => $purpose,
       'data' => $data,
       'file' => $filename
     ] );
@@ -781,9 +779,27 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
     return $this->execute( 'DELETE', '/models/' . $modelId );
   }
 
-  public function download_file( $fileId )
-  {
-    return $this->execute( 'GET', '/files/' . $fileId . '/content', null, null, false );
+  public function download_file( $fileId, $newFile = null ) {
+    $fileInfo = $this->execute( 'GET', '/files/' . $fileId, null, null, false );
+    $fileInfo = json_decode( (string)$fileInfo, true );
+    $filename = $fileInfo['filename'];
+    $extension = pathinfo( $filename, PATHINFO_EXTENSION );
+    if ( empty( $newFile ) ) {
+      include_once( ABSPATH . 'wp-admin/includes/file.php' );
+      $tempFile = wp_tempnam( $filename );
+      if ( !$tempFile ) {
+        $tempFile = tempnam( sys_get_temp_dir(), 'download_' );
+      }
+      if ( pathinfo( $tempFile, PATHINFO_EXTENSION ) != $extension ) {
+        $newFile = $tempFile . '.' . $extension;
+      }
+      else {
+        $newFile = $tempFile;
+      }
+    }
+    $data = $this->execute( 'GET', '/files/' . $fileId . '/content', null, null, false );
+    file_put_contents( $newFile, $data );
+    return $newFile;
   }
 
   public function run_finetune( $fileId, $model, $suffix, $hyperparams = [], $legacy = false )
@@ -878,13 +894,19 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_Core
   public function execute( $method, $url, $query = null, $formFields = null, $json = true, $extraHeaders = null )
   {
     $headers = "Content-Type: application/json\r\n" . "Authorization: Bearer " . $this->apiKey . "\r\n";
+    if ( $this->organizationId ) {
+      $headers .= "OpenAI-Organization: " . $this->organizationId . "\r\n";
+    }
     $body = $query ? json_encode( $query ) : null;
     if ( !empty( $formFields ) ) {
       $boundary = wp_generate_password( 24, false );
-      $headers  = [
+      $headers = [
         'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
         'Authorization' => 'Bearer ' . $this->apiKey
       ];
+      if ( $this->organizationId ) {
+        $headers['OpenAI-Organization'] = $this->organizationId;
+      }
       $body = $this->build_form_body( $formFields, $boundary );
     }
 

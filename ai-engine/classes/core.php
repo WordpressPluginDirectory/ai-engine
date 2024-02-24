@@ -92,10 +92,12 @@ class Meow_MWAI_Core
 	#endregion
 
 	#region AI-Related Helpers
-	function run_query( $query, $streamCallback = null ) {
-		$envId = !empty( $query->envId ) ? $query->envId : $this->get_option( 'ai_default_env' );
+	function run_query( $query, $streamCallback = null, $markdown = false ) {
+		$envId = !empty( $query->envId ) ? $query->envId : null;
 		$engine = Meow_MWAI_Engines_Factory::get( $this, $envId );
-		if ( !$engine->retrieve_model_info( $query->model ) ) {
+
+		// If the engine is not set, we need to set it to the default one.
+		if ( !$envId || !$engine->retrieve_model_info( $query->model ) ) {
 			if ( $query instanceof Meow_MWAI_Query_Text ) {
 				$this->set_if_empty_defaults( $query, 'ai_default_env', 'ai_default_model' );
 			}
@@ -110,7 +112,21 @@ class Meow_MWAI_Core
 			}
 			$engine = Meow_MWAI_Engines_Factory::get( $this, $query->envId );
 		}
-		return $engine->run( $query, $streamCallback );
+
+		// Let's run the query.
+		$reply = $engine->run( $query, $streamCallback );
+		
+		// Let's allow to modify the reply before it is sent.
+		if ( $markdown ) {
+			if ( $query instanceof Meow_MWAI_Query_Image ) {
+				$reply->result = "";
+				foreach ( $reply->results as $result ) {
+					$reply->result .= "![Image]($result)\n";
+				}
+			}
+		}
+
+		return $reply;
 	}
 	
 	private function set_if_empty_defaults( $query, $envOption, $modelOption ) {
@@ -206,7 +222,7 @@ class Meow_MWAI_Core
  	#region Image-Related Helpers
 	function download_image( $url ) {
 		$args = array( 'timeout' => 60, );
-		$response = wp_remote_get( $url, $args );
+		$response = wp_safe_remote_get( $url, $args );
 		if ( is_wp_error( $response ) ) {
 			throw new Exception( $response->get_error_message() );
 		}
@@ -217,23 +233,46 @@ class Meow_MWAI_Core
 		return $output;
 	}
 
-	public function add_image_from_url( $url, $filename = null, $title = null, $description = null, $caption = null, $alt = null ) {
+	/**
+	 * Add an image from a URL to the Media Library.
+	 * @param string $url The URL of the image to be downloaded.
+	 * @param string $filename The filename of the image, if not set, it will be the basename of the URL.
+	 * @param string $title The title of the image.
+	 * @param string $description The description of the image.
+	 * @param string $caption The caption of the image.
+	 * @param string $alt The alt text of the image.
+	 * @return int The attachment ID of the image.
+	 */
+	public function add_image_from_url( $url, $filename = null, $title = null,
+		$description = null, $caption = null, $alt = null ) {
+		$path_parts = pathinfo( parse_url( $url, PHP_URL_PATH ) );
+		$url_filename = $path_parts['basename'];
+		$file_type = wp_check_filetype( $url_filename, null );
+		$allowed_types = get_allowed_mime_types();
+		if ( !$file_type || !in_array( $file_type['type'], $allowed_types ) ) {
+			throw new Exception( 'Invalid file type.' );
+		}
+		$extension = $file_type['ext'];
 		$image_data = $this->download_image( $url );
 		if ( !$image_data ) {
 			throw new Exception( 'Could not download the image.' );
 		}
 		$upload_dir = wp_upload_dir();
+
+		// If filename is not set or starts with 'generated_', we will generate a new filename.
 		if ( empty( $filename ) ) {
-			$filename = basename( $url );
-			$filename = sanitize_file_name( $filename );
-			if ( strlen( $filename ) > 32 ) {
-				$filename = $this->get_random_id( 16 ) . '.jpg';
+			$filename = sanitize_file_name( $url_filename );
+			$extension = pathinfo( $filename, PATHINFO_EXTENSION );
+			if ( empty( $extension ) ) {
+				$extension = $file_type['ext'];
+			}
+			if ( strlen( $filename ) > 32 || strlen( $filename ) < 4 || strpos( $filename, 'generated_' ) === 0 ) {
+				$filename = $this->get_random_id( 16 ) . '.' . $extension;
 			}
 			if ( strpos( $filename, '.' ) === false ) {
-				$filename .= '.jpg';
+				$filename .= '.' . $extension;
 			}
 		}
-		$wp_filetype = wp_check_filetype( $filename );
 		if ( wp_mkdir_p( $upload_dir['path'] ) ) {
 			$file = $upload_dir['path'] . '/' . $filename;
 		}
@@ -252,7 +291,7 @@ class Meow_MWAI_Core
 		// Write the file
 		file_put_contents( $file, $image_data );
 		$attachment = [
-			'post_mime_type' => $wp_filetype['type'],
+			'post_mime_type' => $file_type['type'],
 			'post_title' => $title ?? '',
 			'post_content' => $description ?? '',
 			'post_excerpt' => $caption ?? '',
@@ -635,7 +674,17 @@ class Meow_MWAI_Core
 		return null;
 	}
 
-	function get_environment( $envId ) {
+	function get_embeddings_env( $envId ) {
+		$envs = $this->get_option( 'embeddings_envs' );
+		foreach ( $envs as $env ) {
+			if ( $env['id'] === $envId ) {
+				return $env;
+			}
+		}
+		return null;
+	}
+
+	function get_ai_env( $envId ) {
 		$envs = $this->get_option( 'ai_envs' );
 		foreach ( $envs as $env ) {
 			if ( $env['id'] === $envId ) {
@@ -646,7 +695,7 @@ class Meow_MWAI_Core
 	}
 
 	function get_assistant( $envId, $assistantId ) {
-		$env = $this->get_environment( $envId );
+		$env = $this->get_ai_env( $envId );
 		if ( !$env ) {
 			return null;
 		}
@@ -709,7 +758,7 @@ class Meow_MWAI_Core
 		}
 		$options['chatbot_defaults'] = MWAI_CHATBOT_DEFAULT_PARAMS;
 		$options['default_limits'] = MWAI_LIMITS;
-		$options['openai_models'] = Meow_MWAI_Engines_OpenAI::get_models_static();
+		$options['openai_models'] = apply_filters( 'mwai_openai_models', Meow_MWAI_Engines_OpenAI::get_models_static() );
 		$options['fallback_model'] = MWAI_FALLBACK_MODEL;
 
 		//$this->options = $options;
