@@ -89,12 +89,17 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_OpenAI
       $mime = $query->attachedFile->get_mimeType();
       // Claude only supports upload by data (base64), not by URL.
       $data = $query->attachedFile->get_base64();
+      $message = $query->get_message();
+      if ( empty( $message ) ) {
+        // Claude doesn't support messages with only images, so we add a text message.
+        $message = "I uploaded an image. Do not consider this message as part of the conversation.";
+      }
       $messages[] = [ 
         'role' => 'user',
         'content' => [
           [
             "type" => "text",
-            "text" => $query->get_message()
+            "text" => $message
           ],
           [
             "type" => "image",
@@ -172,7 +177,7 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_OpenAI
       if ( !empty( $query->functions ) ) {
         $model = $this->retrieve_model_info( $query->model );
         if ( !empty( $model['tags'] ) && !in_array( 'functions', $model['tags'] ) ) {
-          error_log( 'AI Engine: The model "' . $query->model . '" doesn\'t support Function Calling.' );
+          $this->core->log( '⚠️ (Anthropic) The model "' . $query->model . '" doesn\'t support Function Calling.' );
         }
         else {
           $body['tools'] = [];
@@ -219,7 +224,7 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_OpenAI
       if ( !empty( $query->functions ) ) {
         $model = $this->retrieve_model_info( $query->model );
         if ( !empty( $model['tags'] ) && !in_array( 'functions', $model['tags'] ) ) {
-          error_log( 'AI Engine: The model "' . $query->model . '" doesn\'t support Function Calling.' );
+          $this->core->log( '⚠️ (Anthropic) The model "' . $query->model . '" doesn\'t support Function Calling.' );
         }
         else {
           $body['tools'] = [];
@@ -408,7 +413,7 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_OpenAI
           $error = $json['error']['message'];
         }
       }
-      error_log( $error );
+      $this->core->log( "❌ (Anthropic) $error" );
       $service = $this->get_service_name();
       $message = "From $service: " . $error;
       throw new Exception( $message );
