@@ -93,6 +93,7 @@ class Meow_MWAI_Modules_Chatbot {
 
 	public function build_final_res( $botId, $newMessage, $newFileId, $params, $reply, $images, $actions, $usage ) {
 		$filterParams = [
+			'step' => 'reply',
 			'botId' => $botId,
 			'reply' => $reply,
 			'images' => $images,
@@ -106,6 +107,7 @@ class Meow_MWAI_Modules_Chatbot {
 		$shortcuts = apply_filters( 'mwai_chatbot_shortcuts', [], $filterParams );
 		$actions = $this->sanitize_actions( $actions );
 		$blocks = $this->sanitize_blocks( $blocks );
+		$shortcuts = $this->sanitize_shortcuts( $shortcuts );
 		return [
 			'success' => true,
 			'reply' => $reply,
@@ -148,12 +150,15 @@ class Meow_MWAI_Modules_Chatbot {
 	}
 
 	private function sanitize_items( $items, $supported_types, $type_name ) {
+		if ( empty( $items ) ) {
+			return $items;
+		}
 		$sanitized_items = [];
-		foreach ( $items as $item ) {
+ 		foreach ( $items as $item ) {
 			if ( isset( $supported_types[$item['type']] ) ) {
 				$is_valid = true;
 				foreach ( $supported_types[$item['type']] as $param ) {
-					if ( empty( $item['data'][$param] ) ) {
+					if ( !isset( $item['data'][$param] ) ) {
 						$is_valid = false;
 						$this->core->log( "⚠️ Missing required parameter '{$param}' for {$type_name} type: {$item['type']}." );
 						break;
@@ -286,7 +291,6 @@ class Meow_MWAI_Modules_Chatbot {
 							if ( !empty( $query->chatId ) ) {
 								$chatbotName .= "_" . $query->chatId;
 							}
-							$expiry = $this->core->get_option( 'image_expires' );
 							$metadata = [];
 							if ( !empty( $chatbot['assistantId'] ) ) {
 								$metadata['assistantId'] = $chatbot['assistantId'];
@@ -294,6 +298,7 @@ class Meow_MWAI_Modules_Chatbot {
 							if ( !empty( $query->chatId ) ) {
 								$metadata['chatId'] = $query->chatId;
 							}
+							$expiry = $this->core->get_option( 'image_expires' );
 							$storeId = $openai->create_vector_store( $chatbotName, $expiry, $metadata );
 							$query->setStoreId( $storeId );
 						}	
@@ -451,11 +456,12 @@ class Meow_MWAI_Modules_Chatbot {
 			'contextId' => get_the_ID(),
 			'pluginUrl' => MWAI_URL,
 			'restUrl' => untrailingslashit( get_rest_url() ),
-			'debugMode' => $this->core->get_option( 'debug_mode' ),
-			'typewriter' => $this->core->get_option( 'chatbot_typewriter' ),
+			'stream' => $this->core->get_option( 'ai_streaming' ),
+			'debugMode' => $this->core->get_option('module_devtools') && $this->core->get_option( 'debug_mode' ),
 			'speech_recognition' => $this->core->get_option( 'speech_recognition' ),
 			'speech_synthesis' => $this->core->get_option( 'speech_synthesis' ),
-			'stream' => $this->core->get_option( 'ai_streaming' ),
+			'typewriter' => $this->core->get_option( 'chatbot_typewriter' ),
+			'virtual_keyboard_fix' => $this->core->get_option( 'virtual_keyboard_fix' )
 		];
 		return $frontSystem;
 	}
@@ -568,6 +574,19 @@ class Meow_MWAI_Modules_Chatbot {
 			set_transient( 'mwai_custom_chatbot_' . $customId, $serverParams, 60 * 60 * 24 );
 		}
 
+		// Retrieve the actions, shortcuts, and blocks we want to inject at the beginning
+		$filterParams = [
+			'step' => 'init',
+			'botId' => $botId,
+			'params' => array_merge( $frontParams, $frontSystem, $serverParams )
+		];
+		$actions = apply_filters( 'mwai_chatbot_actions', [], $filterParams );
+		$blocks = apply_filters( 'mwai_chatbot_blocks', [], $filterParams );
+		$shortcuts = apply_filters( 'mwai_chatbot_shortcuts', [], $filterParams );
+		$frontSystem['actions'] = $this->sanitize_actions( $actions );
+		$frontSystem['blocks'] = $this->sanitize_blocks( $blocks );
+		$frontSystem['shortcuts'] = $this->sanitize_shortcuts( $shortcuts );
+
 		// Client-side: Prepare JSON for Front Params and System Params
 		$theme = isset( $frontParams['themeId'] ) ? $this->core->get_theme( $frontParams['themeId'] ) : null;
 		$jsonFrontParams = htmlspecialchars( json_encode( $frontParams ), ENT_QUOTES, 'UTF-8' );
@@ -576,6 +595,7 @@ class Meow_MWAI_Modules_Chatbot {
 		//$jsonAttributes = htmlspecialchars(json_encode($atts), ENT_QUOTES, 'UTF-8');
 
 		$this->enqueue_scripts();
+
 		return "<div class='mwai-chatbot-container' data-params='{$jsonFrontParams}' data-system='{$jsonFrontSystem}' data-theme='{$jsonFrontTheme}'></div>";
 	}
 
