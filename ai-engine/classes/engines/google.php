@@ -248,10 +248,6 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core
       //$body['function_call'] = $query->functionCall;
     }
 
-    if ( $query->mode !== 'chat' ) { 
-      throw new Exception( 'Google models only support chat mode.' );
-    }
-
     $body['contents'] = $this->build_messages( $query );
     $url = $this->endpoint;
 
@@ -407,6 +403,9 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core
       }
       // If the name includes 'Vision', add 'vision' tag
       if ( preg_match( '/vision/i', $model['name'], $matches ) ) {
+        $tags[] = 'vision';
+      }
+      else if ( preg_match( '/(vision|multimodal)/i', $model['description'], $matches ) ) {
         $tags[] = 'vision';
       }
       $name = preg_replace( '/^models\//', '', $model['name'] );
