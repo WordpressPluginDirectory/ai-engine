@@ -176,12 +176,14 @@ class Meow_MWAI_Reply implements JsonSerializable {
           // If it's a function call (Open-AI style; usually for a final execution)
           if ( isset( $choice['message']['function_call'] ) ) {
             $content = $choice['message']['function_call'];
+            $name = trim( $content['name'] );
+            $args = $content['arguments'] ?? $content['args'] ?? null;
             $toolCalls[] = [
               'toolId' => null,
               'mode' => 'static',
               'type' => 'function_call',
-              'name' => trim( $choice['message']['function_call']['name'] ),
-              'arguments' => $this->extract_arguments( $tool['message']['function_call']['arguments'] ),
+              'name' => $name,
+              'arguments' => $this->extract_arguments( $args ),
               'rawMessage' => $rawMessage ? $rawMessage : $choice['message'],
             ];
           }
@@ -240,7 +242,19 @@ class Meow_MWAI_Reply implements JsonSerializable {
 
         // It's url/image
         else if ( isset( $choice['url'] ) ) {
+          // TODO: DALL-E 2 and 3 were using URLs, but now they are using b64_json (gpt-image-1 kind of enforced it)
           $url = trim( $choice['url'] );
+          $this->results[] = $url;
+          $this->result = $url;
+        }
+
+        else if ( isset( $choice['b64_json'] ) ) {
+          // In that case we need to create a temporary file in WordPress to store the image, and return the URL for it.
+          global $mwai_core;
+          $url = $mwai_core->files->save_temp_image_from_b64( $choice['b64_json'] );
+          if ( is_wp_error( $url ) ) {
+            return $url;
+          }
           $this->results[] = $url;
           $this->result = $url;
         }

@@ -96,6 +96,7 @@ define( 'MWAI_OPTIONS', [
 	'module_embeddings' => false,
 	'module_transcription' => false,
 	'module_advisor' => false,
+	'module_mcp' => false,
 	'speech_recognition' => false,
 	'speech_synthesis' => false,
 	'virtual_keyboard_fix' => false,
@@ -107,6 +108,7 @@ define( 'MWAI_OPTIONS', [
 	'chatbot_discussions_titling' => true,
 	'chatbot_moderation' => false,
 	'syntax_highlight' => false,
+	'privacy_first' => false,
 	'limits' => MWAI_LIMITS,
 
 	// Settings for Images
