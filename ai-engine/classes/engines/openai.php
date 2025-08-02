@@ -132,11 +132,13 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_ChatML {
         $historyStrategy = 'response_id';
       }
 
-      // Debug logging for feedback queries
+      // Debug logging for all queries when using Responses API
       $queries_debug = $this->core->get_option( 'queries_debug_mode' );
-      if ( $queries_debug && $query instanceof Meow_MWAI_Query_Feedback ) {
-        error_log( '[AI Engine Queries] Feedback query previousResponseId: ' . ( $query->previousResponseId ?? 'null' ) );
-        error_log( '[AI Engine Queries] Feedback query historyStrategy: ' . ( $historyStrategy ?? 'null' ) );
+      
+      if ( $queries_debug ) {
+        if ( $query instanceof Meow_MWAI_Query_Feedback ) {
+          error_log( '[AI Engine] Feedback query blocks: ' . count( $query->blocks ?? [] ) );
+        }
       }
 
       // Handle based on history strategy
@@ -186,15 +188,29 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_ChatML {
         }
         else {
           // Regular user message
+          $content = [
+            [
+              'type' => 'input_text',
+              'text' => $query->get_message()
+            ]
+          ];
+
+          // Check for attached file/image
+          if ( $query->attachedFile ) {
+            $imageUrl = $query->image_remote_upload === 'url'
+              ? $query->attachedFile->get_url()
+              : $query->attachedFile->get_inline_base64_url();
+
+            $content[] = [
+              'type' => 'input_image',
+              'image_url' => $imageUrl
+            ];
+          }
+
           $body['input'] = [
             [
               'role' => 'user',
-              'content' => [
-                [
-                  'type' => 'input_text',
-                  'text' => $query->get_message()
-                ]
-              ]
+              'content' => $content
             ]
           ];
 
@@ -1289,9 +1305,11 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_ChatML {
         $message = [ 'role' => 'assistant', 'content' => $this->streamContent ];
 
         if ( !empty( $this->streamToolCalls ) ) {
-          error_log( '[AI Engine Queries] Responses API: Found ' . count( $this->streamToolCalls ) . ' tool calls in streaming response' );
-          foreach ( $this->streamToolCalls as $idx => $toolCall ) {
-            error_log( '[AI Engine Queries]   Tool call ' . $idx . ': ' . $toolCall['function']['name'] . ' (id: ' . $toolCall['id'] . ')' );
+          if ( $this->core->get_option( 'queries_debug_mode' ) ) {
+            error_log( '[AI Engine Queries] Responses API: Found ' . count( $this->streamToolCalls ) . ' tool calls in streaming response' );
+            foreach ( $this->streamToolCalls as $idx => $toolCall ) {
+              error_log( '[AI Engine Queries]   Tool call ' . $idx . ': ' . $toolCall['function']['name'] . ' (id: ' . $toolCall['id'] . ')' );
+            }
           }
           $message['tool_calls'] = $this->streamToolCalls;
         }
@@ -1390,7 +1408,9 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_ChatML {
               // Responses API returns function_call type with call_id
               $callId = $output_item['call_id'] ?? $output_item['id'] ?? null;
               $functionName = $output_item['name'] ?? '';
-              error_log( '[AI Engine Queries] Found function_call: ' . $functionName . ' (call_id: ' . $callId . ')' );
+              if ( $this->core->get_option( 'queries_debug_mode' ) ) {
+                error_log( '[AI Engine Queries] Found function_call: ' . $functionName . ' (call_id: ' . $callId . ')' );
+              }
               
               $tool_calls[] = [
                 'id' => $callId,
@@ -1603,14 +1623,16 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_ChatML {
 
       // Special handling for "No tool output found" errors
       if ( strpos( $message, 'No tool output found' ) !== false ) {
-        // Always log this error with details
-        error_log( '[AI Engine Queries] Responses API Tool Output Error:' );
-        error_log( '[AI Engine Queries] Error: ' . $message );
-        error_log( '[AI Engine Queries] This typically means the function call outputs were not properly formatted or are missing.' );
-        
-        // Log the last request body if available
-        if ( property_exists( $this, 'lastRequestBody' ) && $this->lastRequestBody ) {
-          error_log( '[AI Engine Queries] Last request body: ' . json_encode( $this->lastRequestBody, JSON_PRETTY_PRINT ) );
+        // Log this error with details when queries debug is enabled
+        if ( $this->core->get_option( 'queries_debug_mode' ) ) {
+          error_log( '[AI Engine Queries] Responses API Tool Output Error:' );
+          error_log( '[AI Engine Queries] Error: ' . $message );
+          error_log( '[AI Engine Queries] This typically means the function call outputs were not properly formatted or are missing.' );
+          
+          // Log the last request body if available
+          if ( property_exists( $this, 'lastRequestBody' ) && $this->lastRequestBody ) {
+            error_log( '[AI Engine Queries] Last request body: ' . json_encode( $this->lastRequestBody, JSON_PRETTY_PRINT ) );
+          }
         }
       }
 

@@ -90,6 +90,11 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     return false;
   }
 
+  private function is_realtime_model( $model ) {
+    $modelDef = $this->retrieve_model_info( $model );
+    return !empty( $modelDef['family'] ) && $modelDef['family'] === 'realtime';
+  }
+
   protected function build_messages( $query ) {
     $messages = [];
 
@@ -261,11 +266,20 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
       return $body;
     }
     else if ( $query instanceof Meow_MWAI_Query_Transcribe ) {
+      // Determine filename
+      $filename = 'audio.mp3'; // default
+      if ( !empty( $query->url ) ) {
+        $filename = basename( $query->url );
+      }
+      else if ( $query->attachedFile && method_exists( $query->attachedFile, 'get_filename' ) ) {
+        $filename = $query->attachedFile->get_filename();
+      }
+      
       $body = [
         'prompt' => $query->message,
         'model' => $query->model,
         'response_format' => 'text',
-        'file' => basename( $query->url ),
+        'file' => $filename,
         'data' => $extra
       ];
       return $body;
@@ -682,7 +696,7 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
         $content = $content['value'];
       }
       else {
-        throw new Exception( 'AI Engine: Could not read this: ' . json_encode( $content ) );
+        throw new Exception( 'Could not read this: ' . json_encode( $content ) );
       }
     }
 
@@ -696,6 +710,13 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
   }
 
   public function run( $query, $streamCallback = null, $maxDepth = 5 ) {
+    // Check if this is a realtime model being used with chat completions
+    if ( $this->is_realtime_model( $query->model ) ) {
+      throw new Exception( 
+        'Realtime models (like ' . $query->model . ') are designed for voice/audio interactions and cannot be used with this API.'
+      );
+    }
+    
     if ( $streamCallback ) {
       // Disable streaming only for "o1" (as December 2024, it works for preview and mini)
       if ( $query->model === 'o1' ) {
@@ -825,6 +846,13 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
 
   private function get_audio( $url ) {
     require_once( ABSPATH . 'wp-admin/includes/media.php' );
+    
+    // Validate URL scheme to prevent SSRF attacks
+    $parts = wp_parse_url( $url );
+    if ( ! isset( $parts['scheme'] ) || ! in_array( $parts['scheme'], [ 'http', 'https' ], true ) ) {
+      throw new Exception( 'Invalid URL scheme; only HTTP/HTTPS allowed.' );
+    }
+    
     $tmpFile = tempnam( sys_get_temp_dir(), 'audio_' );
     file_put_contents( $tmpFile, file_get_contents( $url ) );
     $length = null;
@@ -838,19 +866,46 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
   }
 
   public function run_transcribe_query( $query ) {
-    // TODO: This function currently only supports the URL method.
-    // But as with Vision, we should support the file upload method too.
-    $attachedFile = $query->attachedFile ?? null;
-    $audioUrl = $query->url ?? null;
-    if ( $attachedFile ) {
-      $audioUrl = $attachedFile->get_url();
-      $query->set_url( $audioUrl );
+    $audioData = null;
+    
+    // Priority 1: Direct audio data
+    if ( !empty( $query->audioData ) ) {
+      $audioData = [
+        'data' => $query->audioData,
+        'length' => strlen( $query->audioData ) / 1024 // KB
+      ];
     }
-    if ( !filter_var( $audioUrl, FILTER_VALIDATE_URL ) ) {
-      throw new Exception( 'Invalid URL for transcription.' );
+    // Priority 2: File path
+    else if ( !empty( $query->path ) ) {
+      if ( !file_exists( $query->path ) ) {
+        throw new Exception( 'Audio file not found: ' . $query->path );
+      }
+      if ( !is_readable( $query->path ) ) {
+        throw new Exception( 'Audio file is not readable: ' . $query->path );
+      }
+      $audioData = [
+        'data' => file_get_contents( $query->path ),
+        'length' => filesize( $query->path ) / 1024 // KB
+      ];
+    }
+    // Priority 3: Attached file object
+    else if ( $query->attachedFile ) {
+      $audioData = [
+        'data' => $query->attachedFile->get_data(),
+        'length' => strlen( $query->attachedFile->get_data() ) / 1024 // KB
+      ];
+    }
+    // Priority 4: URL (backward compatibility)
+    else if ( !empty( $query->url ) ) {
+      if ( !filter_var( $query->url, FILTER_VALIDATE_URL ) ) {
+        throw new Exception( 'Invalid URL for transcription.' );
+      }
+      $audioData = $this->get_audio( $query->url );
+    }
+    else {
+      throw new Exception( 'No audio source provided for transcription. Please provide either audioData, path, attachedFile, or url.' );
     }
 
-    $audioData = $this->get_audio( $audioUrl );
     $body = $this->build_body( $query, null, $audioData['data'] );
     $url = $this->build_url( $query );
     $headers = $this->build_headers( $query );
@@ -1409,7 +1464,7 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     $fileInfo = $this->execute( 'GET', '/files/' . $fileId, null, null, false );
     $fileInfo = json_decode( (string) $fileInfo, true );
     if ( empty( $fileInfo ) ) {
-      throw new Exception( 'AI Engine: File (' . ( $fileId ?? 'N/A' ) . ') not found.' );
+      throw new Exception( 'File (' . ( $fileId ?? 'N/A' ) . ') not found.' );
     }
     $filename = $fileInfo['filename'];
     $extension = pathinfo( $filename, PATHINFO_EXTENSION );

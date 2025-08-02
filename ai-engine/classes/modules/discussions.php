@@ -186,24 +186,28 @@ class Meow_MWAI_Modules_Discussions {
     global $mwai;
     $params = [ 'scope' => 'discussions' ];
     
-    $fastEnv = $this->core->get_option( 'ai_fast_default_env' );
-    $fastModel = $this->core->get_option( 'ai_fast_default_model' );
-    
-    if ( !empty( $fastEnv ) ) {
-      $params['envId'] = $fastEnv;
-    }
-    if ( !empty( $fastModel ) ) {
-      $params['model'] = $fastModel;
-    }
-    
-    $answer = $mwai->simpleTextQuery( $prompt, $params );
-
-    // Clean up the answer
-    $title = trim( $answer );
-    $title = rtrim( $title, '.!?:;,—–-–' ); // Remove trailing punctuation
-    $title = substr( $title, 0, 64 ); // Ensure less than 64 characters
-    if ( empty( $title ) ) {
-      $title = 'Untitled';
+    // Use simpleFastTextQuery which handles Fast Model configuration
+    try {
+      $answer = $mwai->simpleFastTextQuery( $prompt, $params );
+      
+      // Clean up the answer
+      $title = trim( $answer );
+      $title = rtrim( $title, '.!?:;,—–-–' ); // Remove trailing punctuation
+      $title = substr( $title, 0, 64 ); // Ensure less than 64 characters
+      if ( empty( $title ) ) {
+        $title = 'Untitled';
+      }
+    } catch ( Exception $e ) {
+      // Handle content filter or other API errors
+      $error_message = $e->getMessage();
+      if ( strpos( $error_message, 'content_filter' ) !== false || 
+           strpos( $error_message, 'ResponsibleAIPolicyViolation' ) !== false ) {
+        error_log( "AI Engine: Content filter blocked title generation for discussion ID {$discussion->id}. Using fallback title." );
+        $title = 'Discussion ' . date( 'Y-m-d H:i' );
+      } else {
+        error_log( "AI Engine: Failed to generate title for discussion ID {$discussion->id}: " . $error_message );
+        $title = 'Untitled';
+      }
     }
 
     // Update the discussion with the title
@@ -278,6 +282,13 @@ class Meow_MWAI_Modules_Discussions {
       return;
     }
     // END NEW CHECK
+
+    // Set the current user to the first admin to avoid guest limits
+    $admin_users = get_users( array( 'role' => 'administrator', 'number' => 1 ) );
+    if ( ! empty( $admin_users ) ) {
+      $admin_user = $admin_users[0];
+      wp_set_current_user( $admin_user->ID );
+    }
 
     $now = date( 'Y-m-d H:i:s' );
     $ten_days_ago = date( 'Y-m-d H:i:s', strtotime( '-10 days' ) );
@@ -522,8 +533,11 @@ class Meow_MWAI_Modules_Discussions {
     $newMessage = isset( $params['newMessage'] ) ? $params['newMessage'] : $query->get_message();
 
     // If there is a file for "Vision", add it to the message
-    if ( isset( $query->filePurpose ) && $query->filePurpose === 'vision' && isset( $query->file ) ) {
-      $newMessage = "![Uploaded Image]({$query->file})\n" . $newMessage;
+    if ( isset( $query->attachedFile ) && $query->attachedFile !== null ) {
+      $attachedFile = $query->attachedFile;
+      if ( $attachedFile->get_purpose() === 'vision' && $attachedFile->get_type() === 'url' ) {
+        $newMessage = "![Uploaded Image]({$attachedFile->get_url()})\n" . $newMessage;
+      }
     }
 
     $this->check_db();

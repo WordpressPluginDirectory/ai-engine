@@ -85,22 +85,37 @@ class Meow_MWAI_Services_Session {
     return wp_doing_cron() ? 'wp-cron' : 'N/A';
   }
 
-  public function get_ip_address() {
+  public function get_ip_address( $force = false ) {
+    // Get the actual IP address
     $ip_keys = [ 'HTTP_CF_CONNECTING_IP', 'HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR',
       'HTTP_X_FORWARDED', 'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_X_REAL_IP', 'HTTP_FORWARDED_FOR',
       'HTTP_FORWARDED', 'REMOTE_ADDR' ];
+    $actual_ip = null;
     foreach ( $ip_keys as $key ) {
       if ( array_key_exists( $key, $_SERVER ) === true ) {
         $ips = explode( ',', $_SERVER[$key] );
         foreach ( $ips as $ip ) {
           $ip = trim( $ip );
           if ( $this->validate_ip( $ip ) ) {
-            return $ip;
+            $actual_ip = $ip;
+            break 2;
           }
         }
       }
     }
-    return isset( $_SERVER['REMOTE_ADDR'] ) ? $_SERVER['REMOTE_ADDR'] : '127.0.0.1';
+    if ( !$actual_ip ) {
+      $actual_ip = isset( $_SERVER['REMOTE_ADDR'] ) ? $_SERVER['REMOTE_ADDR'] : '127.0.0.1';
+    }
+
+    // If privacy_first is enabled and not forced, return hashed IP
+    if ( !$force && $this->core->get_option( 'privacy_first' ) ) {
+      // Use a salt that's unique per site but consistent
+      $salt = wp_salt( 'auth' );
+      // Create a hash that's consistent for the same IP but anonymized
+      return 'hashed_' . substr( hash( 'sha256', $actual_ip . $salt ), 0, 16 );
+    }
+
+    return $actual_ip;
   }
 
   public function get_user_data() {
@@ -139,6 +154,22 @@ class Meow_MWAI_Services_Session {
     // For guest users, return null instead of generating a string ID
     // This allows the database to store NULL for guests, which displays as "Guest" in the UI
     return $userId;
+  }
+
+  /**
+   * Get session-based user ID for guest users
+   * This creates a unique identifier based on session ID for tracking guest uploads
+   * 
+   * @return string|null Session-based user ID or null if no session
+   */
+  public function get_session_user_id() {
+    $sessionId = $this->get_session_id();
+    if ( !$sessionId || $sessionId === 'N/A' ) {
+      return null;
+    }
+    // Create a consistent user ID based on session
+    // Prefix with 'session_' to distinguish from real user IDs
+    return 'session_' . $sessionId;
   }
 
   public function get_admin_user() {

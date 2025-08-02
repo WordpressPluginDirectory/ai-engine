@@ -101,7 +101,10 @@ class Meow_MWAI_Core {
     // Chatbots & Discussions
     if ( $this->get_option( 'module_chatbots' ) ) {
       $this->chatbot = new Meow_MWAI_Modules_Chatbot();
-      $this->discussions = new Meow_MWAI_Modules_Discussions();
+      // Only instantiate discussions if the feature is enabled
+      if ( $this->get_option( 'chatbot_discussions' ) ) {
+        $this->discussions = new Meow_MWAI_Modules_Discussions();
+      }
     }
 
     // Search
@@ -115,7 +118,7 @@ class Meow_MWAI_Core {
     }
 
     // Simple API
-    $mwai = new Meow_MWAI_API( $this->chatbot, $this->discussions );
+    $mwai = new Meow_MWAI_API( $this->chatbot, $this->discussions ?? null );
 
     // MCP
     if ( $this->get_option( 'module_mcp' ) ) {
@@ -513,6 +516,10 @@ class Meow_MWAI_Core {
   // Get the UserID from the data, or from the current user
   public function get_user_id( $data = null ) {
     return $this->sessionService->get_user_id( $data );
+  }
+
+  public function get_session_user_id() {
+    return $this->sessionService->get_session_user_id();
   }
 
   public function get_admin_user() {
