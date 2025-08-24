@@ -112,6 +112,11 @@ class Meow_MWAI_Core {
       $this->search = new Meow_MWAI_Modules_Search( $this );
     }
 
+    // Forms Manager (standalone Forms UI + shortcode renderer)
+    if ( $this->get_option( 'module_forms' ) ) {
+      new Meow_MWAI_Modules_Forms_Manager( $this );
+    }
+
     // Advanced Core
     if ( class_exists( 'MeowPro_MWAI_Core' ) ) {
       new MeowPro_MWAI_Core( $this );
@@ -945,6 +950,9 @@ class Meow_MWAI_Core {
     $htmlFields = [ 'instructions', 'textCompliance', 'aiName', 'userName', 'startSentence' ];
     $keepLineReturnsFields = [ 'instructions' ];
     $whiteSpacedFields = [ 'context' ];
+    // Boolean fields that need proper conversion
+    $booleanFields = [ 'window', 'copyButton', 'fullscreen', 'localMemory', 'iconBubble', 'centerOpen',
+      'imageUpload', 'fileUpload', 'multiUpload', 'fileSearch', 'contentAware', 'aiAvatar', 'userAvatar', 'guestAvatar' ];
     foreach ( $chatbots as &$chatbot ) {
       foreach ( $chatbot as $key => &$value ) {
         if ( in_array( $key, $deprecatedFields ) ) {
@@ -956,6 +964,21 @@ class Meow_MWAI_Core {
         }
         else if ( in_array( $key, $whiteSpacedFields ) ) {
           $value = sanitize_textarea_field( $value );
+        }
+        else if ( in_array( $key, $booleanFields ) ) {
+          // Convert various representations to boolean
+          if ( is_bool( $value ) ) {
+            // Already boolean, keep as is
+          } else if ( $value === 1 || $value === '1' || $value === true || $value === 'true' || $value === 'yes' ) {
+            // These are true values
+            $value = true;
+          } else if ( $value === 0 || $value === '0' || $value === false || $value === 'false' || $value === 'no' || $value === '' || $value === null ) {
+            // These are false values
+            $value = false;
+          } else {
+            // Default to checking if not empty
+            $value = !empty( $value );
+          }
         }
         else if ( $key === 'functions' ) {
           $functions = [];
