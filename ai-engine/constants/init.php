@@ -116,6 +116,7 @@ define( 'MWAI_OPTIONS', [
   'module_playground' => true,
   'module_generator_content' => true,
   'module_generator_images' => true,
+  'module_generator_videos' => true,
   'module_moderation' => false,
   'module_statistics' => false,
   'module_finetunes' => false,
@@ -153,8 +154,6 @@ define( 'MWAI_OPTIONS', [
   'ai_models_usage' => [],
   'ai_streaming' => true,
   'ai_responses_api' => true,
-  'ai_fast_default_env' => null,
-  'ai_fast_default_model' => MWAI_FALLBACK_MODEL,
   'ai_default_env' => null,
   'ai_default_model' => MWAI_FALLBACK_MODEL,
   'ai_envs' => [
@@ -177,9 +176,19 @@ define( 'MWAI_OPTIONS', [
 
   'mcp_envs' => [],
 
+  'ai_fast_default_env' => null,
+  'ai_fast_default_model' => MWAI_FALLBACK_MODEL,
   'ai_embeddings_default_env' => null,
   'ai_embeddings_default_model' => 'text-embedding-3-small',
   'ai_embeddings_default_dimensions' => 1536,
+  'ai_vision_default_env' => null,
+  'ai_vision_default_model' => 'gpt-4o-mini',
+  'ai_images_default_env' => null,
+  'ai_images_default_model' => 'dall-e-3-hd',
+  'ai_audio_default_env' => null,
+  'ai_audio_default_model' => 'whisper-1',
+  'ai_json_default_env' => null,
+  'ai_json_default_model' => 'gpt-4o-mini',
   'embeddings_default_env' => null,
   'embeddings_envs' => [
     [
@@ -191,7 +200,7 @@ define( 'MWAI_OPTIONS', [
   ],
   'embeddings' => [
     'rewriteContent' => true,
-    'rewritePrompt' => "Rewrite the content concisely in {LANGUAGE}, maintaining the same style and information. The revised text should be under 800 words, with paragraphs ranging from 160-280 words each. Omit non-textual elements and avoid unnecessary repetition. Conclude with a statement directing readers to find more information at {URL}. If you cannot meet these requirements, please leave a blank response. The content is below, between '== START ==' and '== END =='.\n\n== START ==\n{CONTENT}\n== END ==\n\n",
+    'rewritePrompt' => "Start your response with the title: {TITLE}\nOn the next line, provide a brief introductory sentence that explains what the content is about.\n\nThen leave an empty line and begin the rewritten content.\n\nRewrite the content concisely in {LANGUAGE}, maintaining the same style and information. The revised text should be under 800 words, with paragraphs ranging from 160-280 words each. Omit non-textual elements and avoid unnecessary repetition. Conclude with a statement directing readers to find more information at {URL}. If you cannot meet these requirements, please leave a blank response.\n\nThe content to rewrite is below, between '== START ==' and '== END =='.\n\n== START ==\n{CONTENT}\n== END ==\n\n",
     'forceRecreate' => false,
     'syncPosts' => false,
     'syncPostsEnvId' => null,

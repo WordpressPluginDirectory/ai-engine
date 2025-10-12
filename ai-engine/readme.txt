@@ -5,7 +5,7 @@ Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 3.0.7
+Stable tag: 3.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -155,12 +155,52 @@ Check the [docs](https://ai.thehiddendocs.com/), [support forum](https://wordpre
 
 == Changelog ==
 
-= 3.0.7 (2025/09/08) =
-* Fix: Resolved issues with bulk processes.
+= 3.1.2 (2025/10/10) =
+* Add: Realtime Hold-to-Talk feature now includes a Replay button.
+* Add: Support for Azure OpenAI Realtime.
+* Add: Resolutions and pricing for Google models.
+* Add: GPT-5 Pro, GPT Realtime Mini, Sora 2, Gemini Images.
+* Add: Multi-file support for chatbots and forms, both on the UI-side and the models-side.
+* Update: Embeddings Sync has been migrated to the Tasks System.
+* Update: Updated Anthropic and Gemini models.
+* Fix: Image and video pricing.
+* Fix: Hotfix applied to address missing category column in tasks DB.
+* Fix: Realtime API calling now parameterless functions correctly.
+* Fix: Fixed TypeError in embeddings list.
+* Fix: Improved safety with SSRF protection for image downloads.
+* Fix: Resolved various UI/UX issues to improve user experience.
+
+= 3.1.1 (2025/09/30) =
+- Add: Integrated Mistral AI into the plugin.  
+- Fix: Resolved an undefined array key "type" warning in Chroma.
+- Fix: Corrected a database column name error in the task cleanup query.  
+- Fix: Fixed a layout issue in the Gutenberg editor.  
+- Fix: Resolved a crash in template creation when a user cancels the name prompt.  
+- Update: Optimized task refresh logic.
+- Update: Included "reply" as an argument in mwai_ai_feedback.  
+- Update: Improved Google models retrieval logic.  
+- Update: Removed debugging logs, empty code blocks, etc.
+
+= 3.1.0 (2025/09/17) =
+* Add: New 'Hold to Talk' mode for Realtime chatbot.  
+* Add: Tasks Manager (task scheduling, multi-step tasks, progress tracking, retry logic, etc).
+* Fix: Resolved issues with Cross-Side to support renamed plugin folders.  
+* Fix: Hotfix to ensure proper removal of all database tables during uninstall.  
+* Fix: Corrected cross-origin CORS headers not being sent for allowed domains.
+
+= 3.0.9 (2025/09/10) =
 * Update: Improved the UI of the Forms Editor.  
-* Update: Enhance many parts of the UI, UX, better explanations, and more.
 * Update: Redesigned the PDF Import feature for a more streamlined workflow.  
+* Update: Enhanced Embeddings UI with sortable titles, a smarter Sync button, and title preservation.
+* Update: Enhance many parts of the UI, UX, better explanations, and more.
 * Fix: Corrected PDF import chunking.
+* Fix: Resolved PDF Import to correctly utilize custom titles.
+* Fix: Improved PDF Import process to use Admin API instead of Public API.
+* Fix: Addressed cache issues with lazy-loaded chunks by adding dynamic versioning.
+* Fix: Cross-Site feature blocking same-origin requests.  
+* Fix: Streaming issue where empty strings caused [Object] to appear.  
+* Fix: Pinecone metadata error by defaulting the 'type' field to 'manual'.
+* Fix: Resolved issues with bulk processes.
 
 = 3.0.6 (2025/08/29) =
 * Add: Image Upload for Realtime Chatbot.

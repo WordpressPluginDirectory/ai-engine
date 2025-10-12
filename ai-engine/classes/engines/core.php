@@ -37,11 +37,26 @@ class Meow_MWAI_Engines_Core {
     $this->streamBuffer = '';
     $this->streamHeaders = [];
     $this->streamContent = '';
-    
+
     // Reset debug/event state
     $this->currentDebugMode = false;
     $this->currentQuery = null;
     $this->emittedFunctionResults = [];
+  }
+
+  /**
+   * Prepare query before execution.
+   * This method is called BEFORE any streaming hooks are set up.
+   * Engines should override this to perform preliminary tasks like:
+   * - Uploading files to provider APIs
+   * - Preprocessing data
+   * - Validating query parameters
+   *
+   * @param Meow_MWAI_Query_Base $query The query to prepare
+   */
+  protected function prepare_query( $query ) {
+    // Base implementation does nothing
+    // Child engines can override to add provider-specific preparation
   }
 
   public function run( $query, $streamCallback = null, $maxDepth = 5 ) {
@@ -93,7 +108,7 @@ class Meow_MWAI_Engines_Core {
       $reply = $this->run_editimage_query( $query );
     }
     else if ( $query instanceof Meow_MWAI_Query_Image ) {
-      $reply = $this->run_image_query( $query );
+      $reply = $this->run_image_query( $query, $streamCallback );
     }
     else if ( $query instanceof Meow_MWAI_Query_Transcribe ) {
       $reply = $this->run_transcribe_query( $query );
@@ -564,8 +579,10 @@ class Meow_MWAI_Engines_Core {
                 // Don't accumulate in streamContent as it's not regular text
                 call_user_func( $this->streamCallback, $content );
               }
-              else {
-                // For regular string content
+              else if ( !empty( $content ) || $content === '0' ) {
+                // For regular string content - only process non-empty strings (but allow '0')
+                // TODO: This fixes an issue where empty strings were causing [Object] to appear in the chatbot during streaming.
+                // If no issues are reported after November 2025, this TODO comment can be removed (keep the code as-is).
 
                 // TO CHECK: Not sure why we need to do this to make sure there is a line return in the chatbot
                 // If we don't do this, HuggingFace streams "\n" as a token without anything else, and the
@@ -616,7 +633,7 @@ class Meow_MWAI_Engines_Core {
     throw new Exception( 'Not implemented.' );
   }
 
-  public function run_image_query( Meow_MWAI_Query_Base $query ) {
+  public function run_image_query( Meow_MWAI_Query_Base $query, $streamCallback = null ) {
     throw new Exception( 'Not implemented.' );
   }
 

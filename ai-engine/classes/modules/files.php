@@ -15,34 +15,52 @@ class Meow_MWAI_Modules_Files {
     $this->table_files = $this->wpdb->prefix . 'mwai_files';
     $this->table_filemeta = $this->wpdb->prefix . 'mwai_filemeta';
     add_action( 'rest_api_init', [ $this, 'rest_api_init' ] );
-    if ( !wp_next_scheduled( 'mwai_files_cleanup' ) ) {
-      wp_schedule_event( time(), 'hourly', 'mwai_files_cleanup' );
-    }
-    add_action( 'mwai_files_cleanup', [ $this, 'cleanup_expired_files' ] );
+    
+    // TODO: Remove after January 2026 - Legacy cron support
+    // Old cron scheduling removed - now handled by Tasks module
+    // if ( !wp_next_scheduled( 'mwai_files_cleanup' ) ) {
+    //   wp_schedule_event( time(), 'hourly', 'mwai_files_cleanup' );
+    // }
+    // add_action( 'mwai_files_cleanup', [ $this, 'cleanup_expired_files' ] );
+    
+    // Register task handler
+    add_filter( 'mwai_task_cleanup_files', [ $this, 'handle_cleanup_task' ], 10, 2 );
   }
 
   public function cleanup_expired_files() {
-    $current_time = current_time( 'mysql' );
-    $expired_files = [];
-    if ( $this->check_db() ) {
-      $expired_files = $this->wpdb->get_results(
-        "SELECT * FROM $this->table_files WHERE expires IS NOT NULL AND expires < '{$current_time}'"
-      );
+    // Track that this cron started
+    $this->core->track_cron_start( 'mwai_files_cleanup' );
+    
+    try {
+      $current_time = current_time( 'mysql' );
+      $expired_files = [];
+      if ( $this->check_db() ) {
+        $expired_files = $this->wpdb->get_results(
+          "SELECT * FROM $this->table_files WHERE expires IS NOT NULL AND expires < '{$current_time}'"
+        );
+      }
+      $expired_posts = get_posts( [
+        'post_type' => 'attachment',
+        'meta_key' => '_mwai_file_expires',
+        'meta_value' => $current_time,
+        'meta_compare' => '<'
+      ] );
+      $fileRefs = [];
+      foreach ( $expired_files as $file ) {
+        $fileRefs[] = $file->refId;
+      }
+      foreach ( $expired_posts as $post ) {
+        $fileRefs[] = get_post_meta( $post->ID, '_mwai_file_id', true );
+      }
+      $this->delete_expired_files( $fileRefs );
+      
+      // Track successful completion
+      $this->core->track_cron_end( 'mwai_files_cleanup', 'success' );
+    } catch ( Exception $e ) {
+      // Track failure
+      $this->core->track_cron_end( 'mwai_files_cleanup', 'error' );
+      throw $e; // Re-throw to maintain original behavior
     }
-    $expired_posts = get_posts( [
-      'post_type' => 'attachment',
-      'meta_key' => '_mwai_file_expires',
-      'meta_value' => $current_time,
-      'meta_compare' => '<'
-    ] );
-    $fileRefs = [];
-    foreach ( $expired_files as $file ) {
-      $fileRefs[] = $file->refId;
-    }
-    foreach ( $expired_posts as $post ) {
-      $fileRefs[] = get_post_meta( $post->ID, '_mwai_file_id', true );
-    }
-    $this->delete_expired_files( $fileRefs );
   }
 
   public function delete_expired_files( $fileRefs ) {
@@ -291,6 +309,14 @@ class Meow_MWAI_Modules_Files {
         throw new Exception( 'File ID (or URL) is required.' );
       }
     }
+
+    // Check if file with this refId already exists
+    $existingFileId = $this->get_id_from_refId( $fileInfo['refId'] );
+    if ( $existingFileId ) {
+      // File already exists, return its ID
+      return $existingFileId;
+    }
+
     if ( empty( $fileInfo['type'] ) ) {
       $fileInfo['type'] = Meow_MWAI_Core::is_image( $fileInfo['url'] ) ? 'image' : 'file';
     }
@@ -307,8 +333,19 @@ class Meow_MWAI_Modules_Files {
       'path' => empty( $fileInfo['path'] ) ? null : $fileInfo['path'],
       'url' => empty( $fileInfo['url'] ) ? null : $fileInfo['url']
     ] );
-    // check for error
+
+    // Check for error
     if ( !$success ) {
+      // Check if it's a duplicate key error (race condition)
+      if ( strpos( $this->wpdb->last_error, 'Duplicate entry' ) !== false &&
+           strpos( $this->wpdb->last_error, 'unique_file_id' ) !== false ) {
+        // Race condition: file was inserted by another request between our check and insert
+        // Try to get the existing file ID one more time
+        $existingFileId = $this->get_id_from_refId( $fileInfo['refId'] );
+        if ( $existingFileId ) {
+          return $existingFileId;
+        }
+      }
       throw new Exception( 'Error while adding file in the DB (' . $this->wpdb->last_error . ')' );
     }
     return $this->wpdb->insert_id;
@@ -316,7 +353,8 @@ class Meow_MWAI_Modules_Files {
 
   // Generate a refId from a URL or random, and make sure it's unique
   public function generate_refId( $attempts = 0 ) {
-    $refId = md5( date( 'Y-m-d H:i:s' ) . '-' . $attempts );
+    // Use microtime for higher precision to avoid collisions when uploading multiple files simultaneously
+    $refId = md5( microtime( true ) . '-' . wp_rand() . '-' . $attempts );
     $file = $this->wpdb->get_row( $this->wpdb->prepare(
       "SELECT *
                                                                                                                                                                                                                                               FROM $this->table_files
@@ -889,4 +927,96 @@ class Meow_MWAI_Modules_Files {
   }
 
   #endregion
+
+  /**
+   * Handle cleanup task for files
+   */
+  public function handle_cleanup_task( $result, $job ) {
+    $start = microtime( true );
+    $orphan_days = 30; // Delete files older than 30 days
+    
+    // Check if files table exists
+    $table_exists = $this->wpdb->get_var( "SHOW TABLES LIKE '{$this->table_files}'" );
+    if ( !$table_exists ) {
+      return [
+        'ok' => true,
+        'done' => true,
+        'message' => 'Files table does not exist yet',
+      ];
+    }
+    
+    // Get current progress
+    $deleted_total = isset( $job['meta']['deleted_total'] ) ? (int) $job['meta']['deleted_total'] : 0;
+    $last_id = isset( $job['meta']['last_id'] ) ? (int) $job['meta']['last_id'] : 0;
+    
+    // Clean up orphaned database records
+    $batch_size = 100;
+    $deleted_batch = 0;
+    
+    $orphan_cutoff = date( 'Y-m-d H:i:s', strtotime( "-{$orphan_days} days" ) );
+    
+    $orphan_files = $this->wpdb->get_results( $this->wpdb->prepare(
+      "SELECT id, path FROM {$this->table_files} 
+       WHERE updated < %s AND id > %d 
+       ORDER BY id ASC 
+       LIMIT %d",
+      $orphan_cutoff, $last_id, $batch_size
+    ) );
+    
+    if ( !empty( $orphan_files ) ) {
+      foreach ( $orphan_files as $file ) {
+        // Try to delete physical file if it exists
+        if ( !empty( $file->path ) && file_exists( $file->path ) ) {
+          @unlink( $file->path );
+        }
+      }
+      
+      // Delete database records
+      $ids = wp_list_pluck( $orphan_files, 'id' );
+      $ids_string = implode( ',', array_map( 'intval', $ids ) );
+      
+      // Delete from filemeta first (foreign key constraint)
+      $this->wpdb->query(
+        "DELETE FROM {$this->table_filemeta} WHERE file_id IN ($ids_string)"
+      );
+      
+      // Then delete from files
+      $deleted_batch = $this->wpdb->query(
+        "DELETE FROM {$this->table_files} WHERE id IN ($ids_string)"
+      );
+      
+      $deleted_total += $deleted_batch;
+      $last_id = end( $ids );
+    }
+    
+    // Check if we have more to process or time is running out
+    $has_more = count( $orphan_files ) === $batch_size;
+    $time_elapsed = microtime( true ) - $start;
+    
+    if ( $has_more && $time_elapsed < 8 ) {
+      // Continue processing
+      return [
+        'ok' => true,
+        'done' => false,
+        'message' => sprintf( 'Deleted %d files (total: %d)', $deleted_batch, $deleted_total ),
+        'meta' => [
+          'deleted_total' => $deleted_total,
+          'last_id' => $last_id,
+        ],
+        'step' => $job['step'] + 1,
+        'step_name' => 'batch_' . ( $job['step'] + 1 ),
+      ];
+    }
+    
+    // Completed
+    return [
+      'ok' => true,
+      'done' => true,
+      'message' => sprintf( 'Cleanup complete. Deleted %d files older than %d days', $deleted_total, $orphan_days ),
+      'meta' => [
+        'deleted_total' => 0,
+        'last_id' => 0,
+      ],
+    ];
+  }
 }

@@ -3,8 +3,6 @@
 class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
   // Base (Google).
   protected $apiKey = null;
-  protected $region = null;
-  protected $projectId = null;
   protected $endpoint = null;
 
   // Response.
@@ -45,8 +43,6 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
     $env = $this->env;
     $this->apiKey = $env['apikey'];
     if ( $this->envType === 'google' ) {
-      $this->region = isset( $env['region'] ) ? $env['region'] : null;
-      $this->projectId = isset( $env['project_id'] ) ? $env['project_id'] : null;
       $this->endpoint = apply_filters(
         'mwai_google_endpoint',
         'https://generativelanguage.googleapis.com/v1beta',
@@ -82,7 +78,7 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
   * Format function response for Google API
   * Google expects the response to be an object, not a primitive value
   */
-  private function format_function_response( $value ) {
+  protected function format_function_response( $value ) {
     // If it's already an array or object, return as-is
     if ( is_array( $value ) || is_object( $value ) ) {
       return $value;
@@ -99,7 +95,7 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
   * @param array $rawMessage
   * @return array
   */
-  private function format_function_call( $rawMessage ) {
+  protected function format_function_call( $rawMessage ) {
     // If the message already has Google's format with role and parts
     if ( isset( $rawMessage['role'] ) && isset( $rawMessage['parts'] ) &&
         !isset( $rawMessage['content'] ) && !isset( $rawMessage['tool_calls'] ) && !isset( $rawMessage['function_call'] ) ) {
@@ -210,9 +206,13 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
       ];
     }
 
-    // 4. The final user message (check if there is an attached image).
-    if ( $query->attachedFile ) {
-      $data = $query->attachedFile->get_base64();
+    // 4. The final user message (simple text only in free version).
+    // NOTE: Vision and file upload support is available in Pro version only.
+    $attachments = method_exists( $query, 'getAttachments' ) ? $query->getAttachments() : [];
+    if ( !empty( $attachments ) ) {
+      // Get first attachment (Gemini free version supports single file)
+      $file = $attachments[0];
+      $data = $file->get_base64();
       $messages[] = [
         'role' => 'user',
         'parts' => [
@@ -540,6 +540,7 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
 
     try {
       $res = $this->run_query( $url, $options );
+
       $reply = new Meow_MWAI_Reply( $query );
 
       $data = $res['data'];
@@ -556,20 +557,21 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
             error_log( '[AI Engine] Full candidate structure: ' . json_encode( $data['candidates'][0] ) );
           }
         }
-        
+
         foreach ( $data['candidates'] as $candidate ) {
           $content = $candidate['content'];
 
           // Check if there are any parts with function calls
           $functionCalls = [];
           $textContent = '';
+          $hasGeneratedImage = false;
 
           if ( isset( $content['parts'] ) ) {
             // Debug: Log the parts structure when thinking is enabled
             if ( $this->core->get_option( 'queries_debug_mode' ) && !empty( $query->tools ) && in_array( 'thinking', $query->tools ) ) {
               error_log( '[AI Engine] Response parts: ' . json_encode( $content['parts'] ) );
             }
-            
+
             foreach ( $content['parts'] as $part ) {
               if ( isset( $part['functionCall'] ) ) {
                 $functionCalls[] = $part['functionCall'];
@@ -582,6 +584,30 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
                   $event = Meow_MWAI_Event::function_calling( $functionName, $functionArgs );
                   call_user_func( $streamCallback, $event );
                 }
+              }
+              elseif ( ( isset( $part['inline_data'] ) && isset( $part['inline_data']['data'] ) ) ||
+                       ( isset( $part['inlineData'] ) && isset( $part['inlineData']['data'] ) ) ) {
+                // Handle both snake_case and camelCase
+                $imageData = isset( $part['inline_data'] ) ? $part['inline_data'] : $part['inlineData'];
+
+                // Detected an inline image in the response - emit image generation event
+                if ( !$hasGeneratedImage && !empty( $streamCallback ) ) {
+                  $event = new Meow_MWAI_Event( 'live', MWAI_STREAM_TYPES['IMAGE_GEN'] );
+                  $event->set_content( 'Image generated' );
+                  call_user_func( $streamCallback, $event );
+                  $hasGeneratedImage = true;
+                }
+
+                // Store the image data in the reply
+                $base64Data = $imageData['data'];
+                $mimeType = $imageData['mimeType'] ?? 'image/png';
+                $dataUrl = 'data:' . $mimeType . ';base64,' . $base64Data;
+
+                // Add to extra data for potential processing
+                if ( !isset( $reply->extraData['images'] ) ) {
+                  $reply->extraData['images'] = [];
+                }
+                $reply->extraData['images'][] = $dataUrl;
               }
               elseif ( isset( $part['text'] ) ) {
                 // Check if this is a thought part (Gemini thinking)
@@ -642,6 +668,22 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
       $googleRawMessage = null;
       if ( isset( $data['candidates'][0]['content'] ) ) {
         $googleRawMessage = $data['candidates'][0]['content'];
+      }
+
+      // Add images from extraData to choices if present (for compatibility with image handling)
+      if ( !empty( $reply->extraData['images'] ) ) {
+        foreach ( $reply->extraData['images'] as $imageDataUrl ) {
+          // Extract base64 data from data URL if needed
+          if ( strpos( $imageDataUrl, 'data:' ) === 0 ) {
+            // Extract base64 portion from data URL
+            $base64Part = substr( $imageDataUrl, strpos( $imageDataUrl, ',') + 1 );
+            $returned_choices[] = [ 'b64_json' => $base64Part ];
+          }
+          else {
+            // Already in base64 format
+            $returned_choices[] = [ 'b64_json' => $imageDataUrl ];
+          }
+        }
       }
 
       $reply->set_choices( $returned_choices, $googleRawMessage );
@@ -719,6 +761,15 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
     $returned_out_tokens = !is_null( $returned_out_tokens ) ? $returned_out_tokens : $reply->get_out_tokens();
     $usage = $this->core->record_tokens_usage( $returned_model, $returned_in_tokens, $returned_out_tokens );
     $reply->set_usage( $usage );
+
+    // Set accuracy based on data availability
+    if ( !is_null( $returned_in_tokens ) && !is_null( $returned_out_tokens ) ) {
+      // Google provides token counts from API = tokens accuracy
+      $reply->set_usage_accuracy( 'tokens' );
+    } else {
+      // Fallback to estimated
+      $reply->set_usage_accuracy( 'estimated' );
+    }
   }
 
   /**
@@ -891,36 +942,16 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
       $name = str_replace( 'Veo 2.0', 'Veo 2', $name );
     }
     
-    // Check for date pattern "xx xx" where x are numbers (like "03 07")
-    $date_from_name = '';
+    // Remove date pattern "xx xx" where x are numbers (like "03 07") from the name
     if ( preg_match( '/\s(\d{2})\s(\d{2})$/', $name, $matches ) ) {
-      $date_from_name = $matches[1] . '/' . $matches[2];
-      // Remove the date pattern from the name (we'll add it as a suffix later)
       $name = preg_replace( '/\s\d{2}\s\d{2}$/', '', $name );
     }
     
     // Add suffixes to distinguish similar models
     $suffixes = [];
-    
-    // Add date from name if found (like "03 07")
-    if ( !empty( $date_from_name ) ) {
-      $suffixes[] = $date_from_name;
-    }
-    // Add date suffix for preview models with dates
-    else if ( !empty( $date_suffix ) ) {
-      // Convert date format from MM-DD to a more readable format
-      $parts = explode( '-', $date_suffix );
-      if ( count( $parts ) == 2 ) {
-        $month = intval( $parts[0] );
-        $day = intval( $parts[1] );
-        $months = [ '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ];
-        $suffixes[] = $months[$month] . ' ' . $day;
-      }
-    }
-    // Otherwise, add preview suffix if it's a preview model
-    else if ( $is_preview && strpos( $name, 'Preview' ) === false && strpos( $name, 'preview' ) === false ) {
-      $suffixes[] = 'Preview';
-    }
+
+    // Don't add date suffixes - we want clean model names
+    // Don't add Preview suffix - we already have a preview tag
     
     // Add version suffix for numbered models (like -001, -002)
     // Special handling: if base model exists (without -001), then -001 should be marked
@@ -945,10 +976,8 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
       }
     }
     
-    // Handle "latest" suffix
-    if ( $has_latest && strpos( $name, 'Latest' ) === false ) {
-      $suffixes[] = 'Latest';
-    }
+    // Don't add "Latest" suffix in name - we use the 'latest' tag instead
+    // This avoids duplicate "LATEST" information in the UI
     
     // Handle thinking models
     if ( $is_thinking && strpos( $name, 'Thinking' ) === false ) {
@@ -976,7 +1005,73 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
     }
     $body = json_decode( $response['body'], true );
     $models = [];
+
+    if ( empty( $body['models'] ) || !is_array( $body['models'] ) ) {
+      error_log( '[AI Engine] Google Models Retrieval - No models found in response' );
+      return [];
+    }
+
+    error_log( '[AI Engine] Google Models Retrieval - Starting to process ' . count( $body['models'] ) . ' models' );
+
     foreach ( $body['models'] as $model ) {
+      $model_id = preg_replace( '/^models\//', '', $model['name'] );
+
+      error_log( '[AI Engine] Processing model: ' . $model_id );
+
+      // Skip date-specific preview models (e.g., gemini-2.5-flash-preview-09-2025)
+      if ( preg_match( '/-preview-\d{2}-\d{4}/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (date-specific preview YYYY): ' . $model_id );
+        continue;
+      }
+
+      // Skip preview models with MM-DD dates (e.g., preview-03-25, preview-06-17)
+      if ( preg_match( '/-preview-\d{2}-\d{2}/', $model_id ) || preg_match( '/preview-\d{2}-\d{2}$/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (date-specific preview MM-DD): ' . $model_id );
+        continue;
+      }
+
+      // Skip models with date patterns like -YYYYMMDD (e.g., gemini-1.5-flash-8b-20241206)
+      if ( preg_match( '/-\d{8}$/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (YYYYMMDD date): ' . $model_id );
+        continue;
+      }
+
+      // Skip models with date patterns like exp-MMDD (e.g., gemini-1.5-flash-8b-exp-0924)
+      if ( preg_match( '/-exp-\d{4}$/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (exp-MMDD date): ' . $model_id );
+        continue;
+      }
+
+      // Skip experimental models with date patterns like exp-MM-DD (e.g., gemini-2.0-flash-thinking-exp-01-21)
+      if ( preg_match( '/-exp-\d{2}-\d{2}/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (exp-MM-DD date): ' . $model_id );
+        continue;
+      }
+
+      // Skip embedding models with date patterns (e.g., gemini-embedding-exp-03-07)
+      if ( preg_match( '/embedding-exp-\d{2}-\d{2}/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (embedding exp date): ' . $model_id );
+        continue;
+      }
+
+      // Skip imagen/veo models with date patterns (e.g., imagen-4.0-generate-preview-06-06)
+      if ( preg_match( '/(imagen|veo).*-\d{2}-\d{2}/', $model_id ) ) {
+        error_log( '[AI Engine]   -> Skipping (imagen/veo date): ' . $model_id );
+        continue;
+      }
+
+      // Skip robotics models
+      if ( strpos( $model_id, 'robotics' ) !== false ) {
+        error_log( '[AI Engine]   -> Skipping (robotics): ' . $model_id );
+        continue;
+      }
+
+      // Skip TTS models (not for chatbot use)
+      if ( strpos( $model_id, '-tts' ) !== false || strpos( $model_id, 'text-to-speech' ) !== false ) {
+        error_log( '[AI Engine]   -> Skipping (TTS model): ' . $model_id );
+        continue;
+      }
+
       // Determine model family
       $family = 'gemini';
       if ( strpos( $model['name'], 'imagen' ) !== false ) {
@@ -989,6 +1084,7 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
         // Skip models that aren't gemini, imagen, or veo
         continue;
       }
+
       $maxCompletionTokens = $model['outputTokenLimit'];
       $maxContextualTokens = $model['inputTokenLimit'];
       $priceIn = 0;
@@ -1002,6 +1098,7 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
       // Set tags based on model family and features
       $tags = [ 'core' ];
       $features = [ 'completion' ];
+      $tools = [];
 
       if ( $family === 'imagen' ) {
         $tags[] = 'image-generation';
@@ -1012,49 +1109,78 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
         $features = [ 'video-generation' ];
       }
       else {
-        // Gemini models
+        // Gemini models - all support function calling according to documentation
         $tags[] = 'chat';
+        $tags[] = 'functions';
+        $tools[] = 'function_calling';
 
-        if ( preg_match( '/\((beta|alpha|preview)\)/i', $model['name'] ) ) {
+        // Check if it's a preview/beta model
+        if ( preg_match( '/\((beta|alpha|preview)\)/i', $model['name'] ) ||
+             preg_match( '/-preview/', $model_id ) ) {
           $tags[] = 'preview';
           $model['name'] = preg_replace( '/\((beta|alpha|preview)\)/i', '', $model['name'] );
         }
-        if ( preg_match( '/vision/i', $model['name'] ) ) {
+
+        // Vision capabilities - all 2.5, 2.0, and 1.5 models support vision and files
+        if ( preg_match( '/gemini-(2\.5|2\.0|1\.5)/', $model_id ) ) {
           $tags[] = 'vision';
+          $tags[] = 'files'; // All vision models support PDFs/documents
+          $features[] = 'vision';
         }
-        else if ( preg_match( '/(vision|multimodal)/i', $model['description'] ) ) {
-          $tags[] = 'vision';
+
+        // Web search capabilities - all Gemini 2.5 and 1.5 Pro models
+        if ( preg_match( '/gemini-(2\.5|1\.5-pro)/', $model_id ) ) {
+          $tools[] = 'web_search';
         }
-        if ( preg_match( '/flash/i', $model['name'] ) ) {
-          $tags[] = 'vision';
-          $tags[] = 'functions';
+
+        // Image generation - only specific Flash Image models
+        if ( preg_match( '/flash-image|image-preview/', $model_id ) ) {
+          $tags[] = 'image-generation';
+          $features[] = 'image-generation';
+          $tools[] = 'image_generation';
         }
-        if ( preg_match( '/(tts|text-to-speech)/i', $model['name'] ) ) {
+
+        // Audio capabilities for native audio models
+        if ( preg_match( '/native-audio/', $model_id ) ) {
+          $tags[] = 'audio';
+          $features[] = 'audio';
+        }
+
+        // TTS capabilities
+        if ( preg_match( '/(tts|text-to-speech)/', $model_id ) ) {
           $tags[] = 'tts';
           $features = [ 'text-to-speech' ];
         }
-        if ( preg_match( '/embedding/i', $model['name'] ) ) {
-          $tags[] = 'embedding';
-          $tags[] = 'matryoshka'; // Gemini embeddings support matryoshka (dimension truncation)
+
+        // Embedding models
+        if ( preg_match( '/embedding/', $model_id ) ) {
+          $tags = [ 'core', 'embedding', 'matryoshka' ]; // Reset tags for embedding
           $features = [ 'embedding' ];
-          
-          // Check if it's an experimental embedding model
-          if ( strpos( $model['name'], '-exp' ) !== false ) {
+          $tools = []; // Embedding models don't have tools
+          // Check if it's experimental
+          if ( strpos( $model_id, '-exp' ) !== false ) {
             $tags[] = 'experimental';
           }
         }
+
+        // Thinking capabilities for Gemini 2.5 models
+        if ( preg_match( '/gemini-2\.5/', $model_id ) && !in_array( 'embedding', $tags ) ) {
+          $tools[] = 'thinking';
+          $tags[] = 'thinking';
+        }
+
+        // Tag only alias models that point to the latest version (end with -latest)
+        // Examples: gemini-flash-latest, gemini-pro-latest, gemini-flash-lite-latest
+        // Do NOT tag specific versions like gemini-2.5-flash, gemini-2.0-flash
+        if ( preg_match( '/-latest$/', $model_id ) &&
+             !in_array( 'embedding', $tags ) &&
+             !in_array( 'experimental', $tags ) ) {
+          $tags[] = 'latest';
+        }
       }
-      $model_id = preg_replace( '/^models\//', '', $model['name'] );
+
       $nice_name = $this->format_model_name( $model_id );
       
-      // Default tools
-      $tools = [ 'web_search' ];
-      
-      // Add thinking tool for Gemini 2.5 models
-      if ( preg_match( '/gemini-2\.5-(pro|flash)/i', $model_id ) ) {
-        $tools[] = 'thinking';
-        $tags[] = 'thinking';
-      }
       
       $model = [
         'model' => $model_id,
@@ -1068,17 +1194,153 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
         'tags' => $tags,
         'tools' => $tools
       ];
-      
+
+      // Add resolutions and pricing for image generation models
+      // See: https://ai.google.dev/gemini-api/docs/pricing
+      if ( in_array( 'image-generation', $tags ) ) {
+        $model['resolutions'] = [
+          // Landscape
+          [ 'name' => '21:9', 'label' => '21:9 (Ultrawide)' ],
+          [ 'name' => '16:9', 'label' => '16:9 (Wide)' ],
+          [ 'name' => '4:3', 'label' => '4:3 (Standard)' ],
+          [ 'name' => '3:2', 'label' => '3:2 (Classic)' ],
+          // Square
+          [ 'name' => '1:1', 'label' => '1:1 (Square)' ],
+          // Portrait
+          [ 'name' => '2:3', 'label' => '2:3 (Classic Portrait)' ],
+          [ 'name' => '3:4', 'label' => '3:4 (Portrait)' ],
+          [ 'name' => '9:16', 'label' => '9:16 (Tall)' ],
+          // Flexible
+          [ 'name' => '5:4', 'label' => '5:4 (Near Square)' ],
+          [ 'name' => '4:5', 'label' => '4:5 (Near Square Portrait)' ]
+        ];
+
+        // Set pricing for image generation models
+        if ( $family === 'imagen' ) {
+          // Imagen models: per-image pricing
+          // Imagen 3: $0.03 per image
+          // Imagen 4 Fast: $0.02 per image
+          // Imagen 4 Standard: $0.04 per image
+          // Imagen 4 Ultra: $0.06 per image
+          $model['type'] = 'image';
+          $model['unit'] = 1; // Per image
+          $model['mode'] = 'image';
+
+          if ( strpos( $model_id, 'imagen-4.0-fast' ) !== false ) {
+            $priceIn = 0;
+            $priceOut = 0.02; // $0.02 per image
+          }
+          else if ( strpos( $model_id, 'imagen-4.0-ultra' ) !== false ) {
+            $priceIn = 0;
+            $priceOut = 0.06; // $0.06 per image
+          }
+          else if ( strpos( $model_id, 'imagen-4.0' ) !== false ) {
+            $priceIn = 0;
+            $priceOut = 0.04; // $0.04 per image (standard)
+          }
+          else if ( strpos( $model_id, 'imagen-3.0' ) !== false ) {
+            $priceIn = 0;
+            $priceOut = 0.03; // $0.03 per image
+          }
+        }
+        else if ( preg_match( '/flash-image/', $model_id ) ) {
+          // Gemini Flash Image: token-based pricing
+          // Input: $0.30 per 1M tokens (text/image)
+          // Output: $0.039 per image ($30 per 1M tokens, ~1290 tokens per image)
+          $model['unit'] = 1 / 1000000; // Per 1M tokens (same as OpenAI gpt-image models)
+          $model['mode'] = 'image';
+          $priceIn = 0.30;
+          $priceOut = 30.00; // Output is $30 per 1M tokens
+        }
+      }
+
       // Add dimensions for embedding models
       if ( in_array( 'embedding', $tags ) ) {
-        // Gemini embedding models have 3072 dimensions
-        $model['dimensions'] = [ 3072 ];
+        // Gemini embedding models have 768 dimensions (text-embedding-004) or 3072 (experimental)
+        if ( strpos( $model_id, 'text-embedding-004' ) !== false ) {
+          $model['dimensions'] = [ 768 ];
+        } else {
+          $model['dimensions'] = [ 3072 ];
+        }
       }
       if ( $priceIn > 0 && $priceOut > 0 ) {
         $model['price'] = [ 'in' => $priceIn, 'out' => $priceOut ];
       }
+
+      $tagStr = implode( ', ', array_diff( $tags, ['core'] ) ); // Exclude 'core' as it's always there
+      error_log( '[AI Engine]   -> Including: ' . $model_id . ' → "' . $nice_name . '" [' . $tagStr . ']' );
       $models[] = $model;
     }
+
+    // Second pass: Copy tags/features from versioned models to their -latest aliases
+    foreach ( $models as &$model ) {
+      if ( in_array( 'latest', $model['tags'] ?? [] ) ) {
+        // This is a -latest alias, find the corresponding versioned model
+        // e.g., gemini-flash-latest should copy from gemini-2.5-flash (highest version)
+
+        $alias_base = str_replace( '-latest', '', $model['model'] );
+        // Match patterns like: gemini-flash-latest → gemini-X.X-flash
+        $pattern = '/^' . preg_quote( str_replace( 'gemini-', '', $alias_base ), '/' ) . '$/';
+
+        // Find all matching versioned models and pick the highest version
+        $versioned_models = array_filter( $models, function( $m ) use ( $alias_base ) {
+          // Match models like gemini-2.5-flash for alias gemini-flash-latest
+          $model_id = $m['model'];
+
+          // Extract base (e.g., "flash", "pro", "flash-lite")
+          $alias_type = str_replace( 'gemini-', '', str_replace( '-latest', '', $alias_base ) );
+
+          // Check if this is a versioned model of the same type
+          // Pattern: gemini-X.X-{type} or gemini-X.X-{type}-XXX
+          return preg_match( '/^gemini-\d+\.\d+-' . preg_quote( $alias_type, '/' ) . '(-\d{3})?$/', $model_id );
+        } );
+
+        if ( !empty( $versioned_models ) ) {
+          // Sort by version number (descending) to get the latest
+          usort( $versioned_models, function( $a, $b ) {
+            preg_match( '/gemini-(\d+\.\d+)/', $a['model'], $matches_a );
+            preg_match( '/gemini-(\d+\.\d+)/', $b['model'], $matches_b );
+            $version_a = isset( $matches_a[1] ) ? floatval( $matches_a[1] ) : 0;
+            $version_b = isset( $matches_b[1] ) ? floatval( $matches_b[1] ) : 0;
+            return $version_b <=> $version_a;
+          } );
+
+          $source_model = $versioned_models[0];
+
+          // Copy tags (except 'latest' which the alias already has)
+          $tags_to_copy = array_diff( $source_model['tags'] ?? [], ['latest'] );
+          $current_tags = $model['tags'] ?? [];
+          $model['tags'] = array_values( array_unique( array_merge( $current_tags, $tags_to_copy ) ) );
+
+          // Copy features
+          if ( !empty( $source_model['features'] ) ) {
+            $model['features'] = array_values( $source_model['features'] );
+          }
+
+          // Copy tools
+          if ( !empty( $source_model['tools'] ) ) {
+            $model['tools'] = array_values( $source_model['tools'] );
+          }
+
+          error_log( '[AI Engine]   Copied tags/features from ' . $source_model['model'] . ' to ' . $model['model'] );
+        }
+      }
+    }
+    unset( $model ); // Break reference
+
+    // Summary logging
+    $totalModels = count( $models );
+    $latestModels = array_filter( $models, function( $m ) { return in_array( 'latest', $m['tags'] ?? [] ); } );
+    $visionModels = array_filter( $models, function( $m ) { return in_array( 'vision', $m['tags'] ?? [] ); } );
+    $embeddingModels = array_filter( $models, function( $m ) { return in_array( 'embedding', $m['tags'] ?? [] ); } );
+
+    error_log( '[AI Engine] ========================================' );
+    error_log( '[AI Engine] Google Models Retrieval - Summary:' );
+    error_log( '[AI Engine]   Total models: ' . $totalModels );
+    error_log( '[AI Engine]   Latest/Stable: ' . count( $latestModels ) );
+    error_log( '[AI Engine]   Vision models: ' . count( $visionModels ) );
+    error_log( '[AI Engine]   Embedding models: ' . count( $embeddingModels ) );
+    error_log( '[AI Engine] ========================================' );
     
     // Sort models to put most recent versions first
     usort( $models, function( $a, $b ) {
@@ -1187,12 +1449,234 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
   }
 
   /**
-  * Google pricing is not currently supported.
+  * Handle image generation queries for Gemini Flash Image models.
+  * Google's image generation models use the same generateContent endpoint,
+  * so we directly call it and extract the image data.
   *
-  * @return null
+  * @param Meow_MWAI_Query_Image $query
+  * @param callable $streamCallback Optional callback for streaming events
+  * @return Meow_MWAI_Reply
+  */
+  public function run_image_query( $query, $streamCallback = null ) {
+    // Check if the model supports image generation
+    $modelInfo = $this->core->get_engine_models( 'google' );
+    $supportsImageGen = false;
+
+    foreach ( $modelInfo as $model ) {
+      if ( $model['model'] === $query->model &&
+           isset( $model['features'] ) &&
+           in_array( 'image-generation', $model['features'] ) ) {
+        $supportsImageGen = true;
+        break;
+      }
+    }
+
+    if ( !$supportsImageGen ) {
+      throw new Exception( 'The model ' . $query->model . ' does not support image generation.' );
+    }
+
+    // Initialize debug mode
+    $this->init_debug_mode( $query );
+
+    // Emit image generation event if streaming is enabled
+    if ( $this->currentDebugMode && !empty( $streamCallback ) ) {
+      $event = new Meow_MWAI_Event( 'live', MWAI_STREAM_TYPES['IMAGE_GEN'] );
+      $event->set_content( 'Generating image...' );
+      call_user_func( $streamCallback, $event );
+    }
+
+    // Build the request for image generation
+    $body = [
+      'contents' => [
+        [
+          'parts' => [
+            [ 'text' => $query->get_message() ]
+          ]
+        ]
+      ],
+      'generationConfig' => [
+        'candidateCount' => $query->maxResults
+      ]
+    ];
+
+    // Add aspect ratio if provided (e.g., "1:1", "3:4", "16:9")
+    // Must be nested inside imageConfig object
+    if ( !empty( $query->resolution ) ) {
+      $body['generationConfig']['imageConfig'] = [
+        'aspectRatio' => $query->resolution
+      ];
+    }
+
+    // Build URL and headers
+    $url = $this->endpoint . '/models/' . $query->model . ':generateContent';
+    if ( strpos( $url, '?' ) === false ) {
+      $url .= '?key=' . $this->apiKey;
+    }
+    else {
+      $url .= '&key=' . $this->apiKey;
+    }
+
+    $headers = $this->build_headers( $query );
+    $options = $this->build_options( $headers, $body );
+
+    try {
+      $res = $this->run_query( $url, $options );
+      $data = $res['data'];
+
+      if ( empty( $data ) || !isset( $data['candidates'] ) ) {
+        throw new Exception( 'No image generated in response.' );
+      }
+
+      $reply = new Meow_MWAI_Reply( $query );
+      $reply->set_type( 'images' );
+      $images = [];
+
+      // Extract base64 images from the response
+      foreach ( $data['candidates'] as $candidate ) {
+        if ( isset( $candidate['content']['parts'] ) ) {
+          foreach ( $candidate['content']['parts'] as $part ) {
+            // Check for both camelCase (inlineData) and snake_case (inline_data)
+            $inlineData = null;
+            if ( isset( $part['inlineData'] ) && isset( $part['inlineData']['data'] ) ) {
+              $inlineData = $part['inlineData'];
+            }
+            else if ( isset( $part['inline_data'] ) && isset( $part['inline_data']['data'] ) ) {
+              $inlineData = $part['inline_data'];
+            }
+
+            if ( $inlineData ) {
+              // Found an inline image
+              $base64Data = $inlineData['data'];
+              $mimeType = $inlineData['mimeType'] ?? 'image/png';
+
+              // Convert to data URL format for consistency with other engines
+              $dataUrl = 'data:' . $mimeType . ';base64,' . $base64Data;
+
+              // Handle local download if requested
+              if ( $query->localDownload === 'uploads' || $query->localDownload === 'library' ) {
+                $fileId = $this->core->files->upload_file( $dataUrl, null, 'generated', [
+                  'query_envId' => $query->envId,
+                  'query_session' => $query->session,
+                  'query_model' => $query->model,
+                ], $query->envId, $query->localDownload, $query->localDownloadExpiry );
+                $fileUrl = $this->core->files->get_url( $fileId );
+                $images[] = $fileUrl;
+              }
+              else {
+                $images[] = $dataUrl;
+              }
+            }
+          }
+        }
+      }
+
+      if ( empty( $images ) ) {
+        throw new Exception( 'No images found in the response.' );
+      }
+
+      $reply->results = $images;
+      $reply->result = $images[0]; // Set the first image as the main result
+
+      // Handle usage for image generation
+      // Check if API returned token usage data (for Flash Image models)
+      if ( isset( $data['usageMetadata'] ) ) {
+        $usageMetadata = $data['usageMetadata'];
+        $promptTokens = $usageMetadata['promptTokenCount'] ?? 0;
+        $completionTokens = $usageMetadata['candidatesTokenCount'] ?? 0;
+        $totalTokens = $usageMetadata['totalTokenCount'] ?? ( $promptTokens + $completionTokens );
+
+        if ( $totalTokens > 0 ) {
+          // Token-based pricing (Flash Image models)
+          $this->core->record_tokens_usage( $query->model, $promptTokens, $completionTokens );
+          $usage = [
+            'prompt_tokens' => $promptTokens,
+            'completion_tokens' => $completionTokens,
+            'total_tokens' => $totalTokens,
+            'queries' => 1,
+            'accuracy' => 'tokens'
+          ];
+          $reply->set_usage( $usage );
+          $reply->set_usage_accuracy( 'tokens' );
+        }
+        else {
+          // Fallback to per-image pricing
+          $resolution = '1024x1024'; // Default resolution
+          $usage = $this->core->record_images_usage( $query->model, $resolution, count( $images ) );
+          $reply->set_usage( $usage );
+          $reply->set_usage_accuracy( isset( $usage['accuracy'] ) ? $usage['accuracy'] : 'estimated' );
+        }
+      }
+      else {
+        // No usage metadata - per-image pricing (Imagen models)
+        $resolution = '1024x1024'; // Default resolution
+        $usage = $this->core->record_images_usage( $query->model, $resolution, count( $images ) );
+        $reply->set_usage( $usage );
+        $reply->set_usage_accuracy( isset( $usage['accuracy'] ) ? $usage['accuracy'] : 'estimated' );
+      }
+
+      return $reply;
+    }
+    catch ( Exception $e ) {
+      Meow_MWAI_Logging::error( '(Google) ' . $e->getMessage() );
+      throw new Exception( 'From Google: ' . $e->getMessage() );
+    }
+  }
+
+  /**
+  * Calculate the price for a Google API query based on the model and usage.
+  * See: https://ai.google.dev/gemini-api/docs/pricing
+  *
+  * @param Meow_MWAI_Query_Base $query
+  * @param Meow_MWAI_Reply $reply
+  * @return float|null The price in USD, or null if pricing is not available
   */
   public function get_price( Meow_MWAI_Query_Base $query, Meow_MWAI_Reply $reply ) {
-    return null;
+    $model = $query->model;
+    $models = $this->get_models();
+    $modelInfo = null;
+
+    // Find the model in the models list
+    foreach ( $models as $m ) {
+      if ( $m['model'] === $model ) {
+        $modelInfo = $m;
+        break;
+      }
+    }
+
+    if ( !$modelInfo || !isset( $modelInfo['price'] ) ) {
+      return null;
+    }
+
+    $price = $modelInfo['price'];
+    $inUnits = 0;
+    $outUnits = 0;
+
+    // Image generation queries
+    if ( is_a( $query, 'Meow_MWAI_Query_Image' ) ) {
+      // Check if this is a token-based model (Flash Image) or per-image model (Imagen)
+      if ( isset( $reply->usage['total_tokens'] ) && $reply->usage['total_tokens'] > 0 ) {
+        // Token-based pricing (Flash Image models)
+        $inUnits = $reply->usage['prompt_tokens'] ?? 0;
+        $outUnits = $reply->usage['completion_tokens'] ?? 0;
+      }
+      else {
+        // Per-image pricing (Imagen models)
+        $inUnits = 0; // No input cost for Imagen
+        $outUnits = $query->maxResults; // Number of images generated
+      }
+    }
+    // Standard text/chat queries
+    else if ( isset( $reply->usage['total_tokens'] ) ) {
+      $inUnits = $reply->usage['prompt_tokens'] ?? 0;
+      $outUnits = $reply->usage['completion_tokens'] ?? 0;
+    }
+
+    // Calculate price
+    $unit = $modelInfo['unit'] ?? 1;
+    $inPrice = isset( $price['in'] ) ? $price['in'] : 0;
+    $outPrice = isset( $price['out'] ) ? $price['out'] : 0;
+
+    return ( $inUnits * $inPrice * $unit ) + ( $outUnits * $outPrice * $unit );
   }
 
   /**
@@ -1226,8 +1710,7 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
         'details' => [
           'endpoint' => $this->endpoint . '/models',
           'model_count' => $modelCount,
-          'sample_models' => $availableModels,
-          'region' => $this->region ?? 'us-central1'
+          'sample_models' => $availableModels
         ]
       ];
     }
@@ -1242,4 +1725,5 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
       ];
     }
   }
+
 }

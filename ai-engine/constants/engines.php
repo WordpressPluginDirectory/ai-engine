@@ -25,7 +25,7 @@ define( 'MWAI_ENGINES', [
   [
     'name' => 'Google',
     'type' => 'google',
-    'inputs' => ['apikey', 'projectId', 'dynamicModels'],
+    'inputs' => ['apikey', 'dynamicModels'],
     'internal' => true,
     'models' => []
   ],
@@ -33,13 +33,6 @@ define( 'MWAI_ENGINES', [
     'name' => 'OpenRouter',
     'type' => 'openrouter',
     'inputs' => ['apikey', 'dynamicModels'],
-    'internal' => true,
-    'models' => []
-  ],
-  [
-    'name' => 'Hugging Face',
-    'type' => 'huggingface',
-    'inputs' => ['apikey'],
     'internal' => true,
     'models' => []
   ],
@@ -54,6 +47,13 @@ define( 'MWAI_ENGINES', [
     'name' => 'Perplexity',
     'type' => 'perplexity',
     'inputs' => ['apikey'],
+    'internal' => true,
+    'models' => []
+  ],
+  [
+    'name' => 'Mistral',
+    'type' => 'mistral',
+    'inputs' => ['apikey', 'dynamicModels'],
     'internal' => true,
     'models' => []
   ],

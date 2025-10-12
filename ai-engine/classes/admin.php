@@ -4,6 +4,7 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
   public $core;
   public $contentGeneratorEnabled;
   public $imagesGeneratorEnabled;
+  public $videosGeneratorEnabled;
   public $playgroundEnabled;
   public $suggestionsEnabled;
 
@@ -13,6 +14,7 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
     if ( is_admin() ) {
       $this->contentGeneratorEnabled = $this->core->get_option( 'module_generator_content' );
       $this->imagesGeneratorEnabled = $this->core->get_option( 'module_generator_images' );
+      $this->videosGeneratorEnabled = $this->core->get_option( 'module_generator_videos' );
       $this->playgroundEnabled = $this->core->get_option( 'module_playground' );
       $can_access_settings = $this->core->can_access_settings();
       $can_access_features = $this->core->can_access_features();
@@ -87,6 +89,15 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
         [ $this, 'ai_image_generator' ]
       );
     }
+    if ( $this->videosGeneratorEnabled ) {
+      add_management_page(
+        'Generate Videos',
+        'Generate Videos',
+        'read',
+        'mwai_videos_generator',
+        [ $this, 'ai_video_generator' ]
+      );
+    }
 
     // In the Admin Bar:
     add_action( 'admin_bar_menu', [ $this, 'admin_bar_menu' ], 100 );
@@ -99,6 +110,7 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
     $playground = isset( $admin_bar['playground'] ) && $admin_bar['playground'];
     $content_generator = isset( $admin_bar['content_generator'] ) && $admin_bar['content_generator'];
     $images_generator = isset( $admin_bar['images_generator'] ) && $admin_bar['images_generator'];
+    $videos_generator = isset( $admin_bar['videos_generator'] ) && $admin_bar['videos_generator'];
 
     if ( $settings ) {
       $wp_admin_bar->add_node( [
@@ -123,6 +135,14 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
         'title' => MWAI_IMG_WAND_HTML . __( 'Images', 'ai-engine' ),
         'href' => admin_url( 'tools.php?page=mwai_images_generator' ),
         'meta' => [ 'class' => 'mwai-images-generator' ],
+      ] );
+    }
+    if ( $videos_generator ) {
+      $wp_admin_bar->add_node( [
+        'id' => 'mwai-video-generator',
+        'title' => MWAI_IMG_WAND_HTML . __( 'Videos', 'ai-engine' ),
+        'href' => admin_url( 'tools.php?page=mwai_videos_generator' ),
+        'meta' => [ 'class' => 'mwai-videos-generator' ],
       ] );
     }
 
@@ -156,6 +176,10 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
 
   public function ai_image_generator() {
     echo '<div id="mwai-image-generator"></div>';
+  }
+
+  public function ai_video_generator() {
+    echo '<div id="mwai-video-generator"></div>';
   }
 
   public function post_row_actions( $actions, $post ) {
@@ -256,17 +280,18 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
 
     $physical_file = MWAI_PATH . '/app/index.js';
     $cache_buster = file_exists( $physical_file ) ? filemtime( $physical_file ) : MWAI_VERSION;
+    
+    // Cache override: Force cache refresh when ?mwai_cache=1 is in URL
+    if ( isset( $_GET['mwai_cache'] ) ) {
+      $cache_buster = time(); // Use current timestamp for guaranteed cache bust
+    }
+    
     wp_register_script( 'mwai-vendor', MWAI_URL . 'app/vendor.js', null, $cache_buster );
 
     // Base dependencies
     $deps = [ 'mwai-vendor', 'wp-element', 'wp-components', 'wp-plugins', 'wp-i18n' ];
 
     // Check if we're on AI Engine admin pages
-    // Debug: Log the current screen ID to help identify the correct page
-    if ( $current_screen && $this->core->get_option( 'server_debug_mode' ) ) {
-      error_log( '[AI Engine] Current screen ID: ' . $current_screen->id . ', Base: ' . $current_screen->base );
-    }
-
     $is_ai_engine_page = $current_screen && (
       strpos( $current_screen->id, 'mwai_settings' ) !== false ||
       strpos( $current_screen->id, 'meowapps_page_mwai' ) !== false ||
@@ -352,6 +377,7 @@ class Meow_MWAI_Admin extends MeowCommon_Admin {
       'chatbots' => $this->core->get_chatbots(),
       'themes' => $this->core->get_themes(),
       'stream' => $this->core->get_option( 'ai_streaming' ),
+      'cache_buster' => $cache_buster, // Pass cache buster for lazy-loaded chunks
     ];
 
     wp_localize_script( 'mwai', 'mwai', $localize_data );

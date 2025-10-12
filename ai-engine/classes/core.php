@@ -26,6 +26,7 @@ class Meow_MWAI_Core {
   public $chatbot = null;
   public $discussions = null;
   public $search = null;
+  public $advisor = null;
 
   // Service instances for improved architecture
   public $responseIdManager = null;
@@ -42,6 +43,12 @@ class Meow_MWAI_Core {
     $this->is_cli = defined( 'WP_CLI' );
     $this->files = new Meow_MWAI_Modules_Files( $this );
     $this->tasks = new Meow_MWAI_Modules_Tasks( $this );
+    $this->advisor = new Meow_MWAI_Modules_Advisor( $this );
+
+    // Load task examples in Dev Mode
+    if ( $this->get_option( 'dev_mode' ) ) {
+      new Meow_MWAI_Modules_Tasks_Examples( $this );
+    }
 
     add_action( 'plugins_loaded', [ $this, 'init' ] );
     add_action( 'wp_register_script', [ $this, 'register_scripts' ] );
@@ -90,13 +97,6 @@ class Meow_MWAI_Core {
       $this->magicWand = new Meow_MWAI_Modules_Wand( $this );
     }
 
-    // Administrator in WP Admin
-    if ( is_admin() && current_user_can( 'manage_options' ) ) {
-      $module_advisor = $this->get_option( 'module_advisor' );
-      if ( $module_advisor ) {
-        new Meow_MWAI_Modules_Advisor( $this );
-      }
-    }
 
     // Chatbots & Discussions
     if ( $this->get_option( 'module_chatbots' ) ) {
@@ -445,8 +445,8 @@ class Meow_MWAI_Core {
   * @param string $alt The alt text of the image.
   * @return int The attachment ID of the image.
   */
-  public function add_image_from_url( $url, $filename = null, $title = null, $description = null, $caption = null, $alt = null, $attachedPost = null ) {
-    return $this->imageService->add_image_from_url( $url, $filename, $title, $description, $caption, $alt, $attachedPost );
+  public function add_image_from_url( $url, $filename = null, $title = null, $description = null, $caption = null, $alt = null, $attachedPost = null, $post_status = 'inherit', $post_type = 'attachment', $ai_metadata = [] ) {
+    return $this->imageService->add_image_from_url( $url, $filename, $title, $description, $caption, $alt, $attachedPost, $post_status, $post_type, $ai_metadata );
   }
   #endregion
 
@@ -759,23 +759,49 @@ class Meow_MWAI_Core {
     return $this->usageStatsService->record_images_usage( $model, $resolution, $images );
   }
 
+  public function record_videos_usage( $model, $resolution, $seconds ) {
+    return $this->usageStatsService->record_videos_usage( $model, $resolution, $seconds );
+  }
+
   #endregion
 
   #region Streaming
   public function stream_push( $data, $query = null ) {
-    // Handle new Event objects
-    if ( is_object( $data ) && method_exists( $data, 'to_array' ) ) {
-      $data = $data->to_array();
-    }
+    try {
+      // Handle new Event objects
+      if ( is_object( $data ) && method_exists( $data, 'to_array' ) ) {
+        $data = $data->to_array();
+      }
 
-    $data = apply_filters( 'mwai_stream_push', $data, $query );
-    $out = 'data: ' . json_encode( $data );
-    echo $out;
-    echo "\n\n";
-    if ( ob_get_level() > 0 ) {
-      ob_end_flush();
+      $data = apply_filters( 'mwai_stream_push', $data, $query );
+      $out = 'data: ' . json_encode( $data );
+      echo $out;
+      echo "\n\n";
+      if ( ob_get_level() > 0 ) {
+        ob_end_flush();
+      }
+      flush();
     }
-    flush();
+    catch ( Exception $e ) {
+      // Send error as proper SSE error event
+      $errorMessage = 'Oops! Something went wrong on the server. Please try again, and if you are the site developer, check the PHP Error Logs for details.';
+      error_log( '[AI Engine Stream Error] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() );
+
+      $errorData = [
+        'type' => 'error',
+        'data' => $errorMessage
+      ];
+      $out = 'data: ' . json_encode( $errorData );
+      echo $out;
+      echo "\n\n";
+      if ( ob_get_level() > 0 ) {
+        ob_end_flush();
+      }
+      flush();
+
+      // Stop execution after sending error
+      die();
+    }
   }
   #endregion
 
@@ -836,6 +862,30 @@ class Meow_MWAI_Core {
       This is the best section to rename fields.
       We did this in 2024 for context to instructions, and fileUpload to fileSearch. fileSearch is for assistant file search, and fileUpload is now for chatbot file upload (similar to vision, but for files instead of images).
       */
+
+      // Migrate old file upload params to new unified system
+      if ( !isset( $chatbot['fileUpload'] ) ) {
+        // Set fileUpload based on old params (imageUpload, fileUploads, or vision checkbox)
+        $chatbot['fileUpload'] = !empty( $chatbot['imageUpload'] ) || ( isset( $chatbot['fileUploads'] ) && $chatbot['fileUploads'] > 0 );
+        $hasChanges = true;
+      }
+
+      // Ensure maxUploads is set
+      if ( !isset( $chatbot['maxUploads'] ) ) {
+        if ( isset( $chatbot['fileUploads'] ) && $chatbot['fileUploads'] > 0 ) {
+          $chatbot['maxUploads'] = $chatbot['fileUploads'];
+        } else {
+          $chatbot['maxUploads'] = 1; // Default to 1 file
+        }
+        $hasChanges = true;
+      }
+
+      // Sync fileUploads with fileUpload and maxUploads for consistency
+      if ( isset( $chatbot['fileUpload'] ) ) {
+        $chatbot['fileUploads'] = $chatbot['fileUpload'] ? $chatbot['maxUploads'] : 0;
+        $chatbot['multiUpload'] = $chatbot['fileUpload'] && $chatbot['maxUploads'] > 1;
+        $chatbot['imageUpload'] = $chatbot['fileUpload']; // Keep imageUpload in sync
+      }
 
       // if ( isset( $chatbot['context'] ) ) {
       //   $chatbot['instructions'] = $chatbot['context'];
@@ -1043,6 +1093,15 @@ class Meow_MWAI_Core {
           }
         }
       }
+
+      // Sync upload params to ensure consistency
+      // fileUpload is the master control - respect its value
+      $fileUploadEnabled = !empty( $chatbot['fileUpload'] ) || !empty( $chatbot['imageUpload'] );
+      $maxFiles = isset( $chatbot['maxUploads'] ) && $chatbot['maxUploads'] > 0 ? (int) $chatbot['maxUploads'] : 1;
+
+      $chatbot['imageUpload'] = $fileUploadEnabled;
+      $chatbot['fileUploads'] = $fileUploadEnabled ? $maxFiles : 0;
+      $chatbot['multiUpload'] = $fileUploadEnabled && $maxFiles > 1;
     }
     if ( !update_option( $this->chatbots_option_name, $chatbots ) ) {
       Meow_MWAI_Logging::warn( 'Could not update chatbots.' );
@@ -1113,6 +1172,12 @@ class Meow_MWAI_Core {
         $engine['models'] = apply_filters(
           'mwai_perplexity_models',
           Meow_MWAI_Engines_Perplexity::get_models_static()
+        );
+      }
+      else if ( $engine['type'] === 'mistral' ) {
+        $engine['models'] = apply_filters(
+          'mwai_mistral_models',
+          Meow_MWAI_Engines_Mistral::get_models_static()
         );
       }
       else {
@@ -1431,6 +1496,31 @@ class Meow_MWAI_Core {
     delete_option( $this->chatbots_option_name );
     delete_option( $this->option_name );
     return $this->get_all_options( true );
+  }
+  #endregion
+  
+  #region Cron Tracking
+  public function track_cron_start( $hook ) {
+    // Set running transient (expires in 5 minutes as a safety measure)
+    set_transient( 'mwai_cron_running_' . $hook, true, 300 );
+  }
+  
+  public function track_cron_end( $hook, $status = 'success', $error_message = '' ) {
+    // Remove running transient
+    delete_transient( 'mwai_cron_running_' . $hook );
+    
+    // Get existing data
+    $cron_data = get_transient( 'mwai_cron_last_run' ) ?: [];
+    
+    // Update this cron's data - use time() for consistency
+    $cron_data[$hook] = [
+      'time' => time(),
+      'status' => $status,
+      'error' => $error_message
+    ];
+    
+    // Store for 7 days
+    set_transient( 'mwai_cron_last_run', $cron_data, 7 * DAY_IN_SECONDS );
   }
   #endregion
 }
