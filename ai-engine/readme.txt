@@ -5,7 +5,7 @@ Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 3.2.2
+Stable tag: 3.2.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -97,7 +97,7 @@ Create intelligent knowledge bases and semantic search.
 
 **Vector Databases:**
 
-* Pinecone, Chroma, Qdrant
+* Chroma, Qdrant, Pinecone
 * OpenAI Vector Store
 * Automatic synchronization
 * Dimension validation
@@ -185,6 +185,10 @@ IP hashing, GDPR tools, secure file handling, and session-based tracking. You co
 **Constantly Evolving**
 Weekly updates based on real user feedback. We listen, we improve.
 
+== My Dream for AI ==
+
+I am excited about AI, but I believe we need to use it with intention and clarity. Social media showed us how powerful tools can reshape our lives in ways we never expected, sometimes for the better, sometimes not. I want to avoid repeating those mistakes. AI should help us remove the meaningless, tedious work or enhance the work we enjoy. Modern tools should give us more time for what truly matters: spending beautiful moments with the people we love! 💕
+
 == Installation ==
 
 1. Upload `ai-engine` to `/wp-content/plugins/`
@@ -239,15 +243,43 @@ Report security vulnerabilities through the [Patchstack Vulnerability Disclosure
 
 == Changelog ==
 
-= 3.2.2 (2025/11/17) =
-- Fix: HTML Blocks are now in the scrollable conversation.
-- Fix: Corrected MinScore of 0 to be recognized as a valid score.
-- Fix: Fixed bulk sync process to correctly include vectors with model or env mismatches.
-- Fix: Realtime transcript is now scrollable.
-- Fix: Resolved the Embeddings Sync task to run properly with admin rights.
-- Fix: Fixed undefined array key warnings in finetunes handling.
-- Add: Support for Chroma Cloud embeddings with the Qwen3 model.
-- Update: Minor enhancements in the UI.
+= 3.2.6 (2025/11/29) =
+* Fix: Corrected the expected embedding model display for Qdrant and Pinecone.
+* Fix: Corrected spacing between uploaded files/images and chatbot messages.
+* Fix: Improved file handling in the Responses API to safely check file types.
+* Fix: Resolved issues with mwai_forms_submit_params.
+* Update: Refined the Discussions tab.
+* Update: Added the --mwai-iconSize CSS variable to make the icon size adjustable.
+
+= 3.2.5 (2025/11/26) =
+* Update: Redesign the Knowledge settings section.
+* Fix: Prevent DOM elements from being selected behind the chatbot while dragging it.
+* Fix: Ensure Qdrant and Pinecone correctly use their intended embedding environment.
+* 🎵 Discuss with others about Ai Engine on [the Discord](https://discord.gg/bHDGh38).
+* 🌴 Keep us motivated with [a little review here](https://wordpress.org/support/plugin/ai-engine/reviews/). Thank you!
+* 🥰 If you want to help us, check our [Patreon](https://www.patreon.com/meowapps). Thank you!
+* 🚀 [Click here](https://trello.com/b/8U9SdiMy/ai-engine-feature-requests) to vote for the features you want the most.
+
+= 3.2.4 (2025/11/23) =
+* Add: Introduced a Mime Types selector (for Upload Files in Chatbots).
+* Update: Added a new PHP API section and defined the REST API section. AI Engine is extremely easy to use with workflow automation tools like n8n, Make, Zapier, etc, so try it out! ✨
+* Update: Renamed the "Context" section to "Knowledge & Context" and "Tools" to "Tools & Capabilities".
+* Update: Better links to tutorials and documentation.
+* Fix: Corrected the display of model names in Query Logs (such as GPT-4.1 and GPT-5.1).
+
+= 3.2.3 (2025/11/18) =
+* Add: Added support for the new gpt-5.1 model and included a 'none' option for reasoning effort settings.
+* Add: Support for Chroma Cloud embeddings with the Qwen3 model.
+* Fix: Enhanced error detection for Chroma responses.  
+* Fix: Improved accuracy of audio transcription in AI Forms.  
+* Fix: HTML Blocks are now in the scrollable conversation.
+* Fix: Corrected MinScore of 0 to be recognized as a valid score.
+* Fix: Fixed bulk sync process to correctly include vectors with model or env mismatches.
+* Fix: Realtime transcript is now scrollable.
+* Fix: Resolved the Embeddings Sync task to run properly with admin rights.
+* Fix: Fixed undefined array key warnings in finetunes handling.
+* Update: Removed deprecated fields from the embeddings section in AI Forms.
+* Update: Minor enhancements in the UI.
 
 = 3.2.1 (2025/11/11) =
 * Add: IP validation for image uploads/downloads to prevent SSRF. 
@@ -521,10 +553,6 @@ Add: Vector-Aware Search – override the default WordPress search with either A
 * Fix: Clear button and reset logic in the event viewer.
 * Security: Patched a potential MCP injection vector.
 * Misc: Many small optimisations, typo/translation fixes, and cleaner source comments.
-* 🎵 Discuss with others about AI Engine on [the Discord](https://discord.gg/bHDGh38).
-* 🌴 Keep us motivated with [a little review here](https://wordpress.org/support/plugin/ai-engine/reviews/). Thank you!
-* 🥰 If you want to help us, we started a [Patreon](https://www.patreon.com/meowapps). Thank you!
-* 🚀 [Click here](https://trello.com/b/8U9SdiMy/ai-engine-feature-requests) to vote for the features you want the most.
 
 = 2.8.2 (2025/05/23) =
 * Add: New Claude 4 models for enhanced AI capabilities.
