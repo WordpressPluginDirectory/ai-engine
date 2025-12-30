@@ -43,7 +43,7 @@ class Meow_MWAI_Query_Base implements JsonSerializable {
   public ?string $botId = null;
   // Identifier for ad-hoc/custom chatbots (distinct from registered botId)
   public ?string $customId = null;
-  
+
   // Embeddings configuration
   public ?string $embeddingsEnvId = null;
 
@@ -195,15 +195,26 @@ class Meow_MWAI_Query_Base implements JsonSerializable {
   * @param string $instructions The instructions.
   */
   public function set_instructions( string $instructions ): void {
+    global $mwai_core;
+
     // Decode HTML entities in case the instructions were sanitized at the UI level
     // and ended up encoded when reaching the server.
     $instructions = html_entity_decode( $instructions );
 
-    $this->instructions = apply_filters( 'mwai_ai_context', $instructions, $this );
-    if ( $this->instructions !== $instructions ) {
+    // Apply filters first, so developers can add their own placeholders
+    $filtered = apply_filters( 'mwai_ai_context', $instructions, $this );
+    if ( $filtered !== $instructions ) {
       Meow_MWAI_Logging::deprecated( '"mwai_ai_context" filter is deprecated. Please use "mwai_ai_instructions" instead.' );
     }
-    $this->instructions = apply_filters( 'mwai_ai_instructions', $this->instructions, $this );
+    $filtered = apply_filters( 'mwai_ai_instructions', $filtered, $this );
+
+    // Apply placeholders (e.g., {DATE_TIME}, {DISPLAY_NAME}, etc.) after filters,
+    // so custom placeholders added by developers are also processed.
+    if ( $mwai_core ) {
+      $filtered = $mwai_core->do_placeholders( $filtered );
+    }
+
+    $this->instructions = $filtered;
   }
 
   /**
@@ -273,7 +284,7 @@ class Meow_MWAI_Query_Base implements JsonSerializable {
   public function set_custom_id( string $customId ) {
     $this->customId = $customId;
   }
-  
+
   /**
   * The embeddings environment ID to use.
   * @param string $embeddingsEnvId The embeddings environment ID.

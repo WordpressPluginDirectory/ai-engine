@@ -5,7 +5,7 @@ Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.2.7
+Stable tag: 3.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -242,6 +242,36 @@ Start with the [Basics guide](https://ai.thehiddendocs.com/basics/) for installa
 Report security vulnerabilities through the [Patchstack Vulnerability Disclosure Program](https://patchstack.com/database/vdp/9e5fbbbc-964a-4204-8bc0-198f21284efd).
 
 == Changelog ==
+
+= 3.3.0 (2025/12/29) =
+* Add: Added title filter to the Embeddings table.
+* Add: Added filter to all model dropdowns.  
+* Add: Enabled custom placeholder support and model-aware credit customization via new and updated filters for developers.  
+* Add: Introduced prompt caching for Anthropic and a free-text dimension input for non-OpenAI embeddings.  
+* Add: Added dimension mismatch warnings for Pinecone and Qdrant to help diagnose configuration issues.  
+* Add: Included "speech_recognition" support in the embed.js system.
+* Fix: Resolved multiple embedding issues, including OpenRouter parameter compatibility, Pinecone Serverless URLs, and vector store file uploads.  
+* Fix: Improved compatibility with multilingual plugins, placeholder processing, and post content handling through dedicated filters.  
+* Update: Performed an end-of-year cleanup by removing expired database migrations, deprecating outdated Claude 3 Opus models, and tidying up legacy debug and commented code.
+
+= 3.2.9 (2025/12/17) =
+* Add: Added support for the new gpt-image-1.5 model, works quite well! 😊  
+* Fix: Restored reliable image editing (added missing file attachment handling, separating the edit mode prompt from templates, and preventing double dots in generated filenames).  
+* Fix: Corrected Mistral model filtering so available models now appear and work as expected.  
+* Fix: Resolved a UI crash when selecting OpenRouter providers that use non-standard model data.
+
+= 3.2.8 (2025/12/12) =
+* Add: Support for GPT-5.2 models (including gpt-5.2, gpt-5.2-chat-latest, and gpt-5.2-pro).
+* Add: Support for placeholders in chatbot instructions.
+* Add: MWAI_SSL_VERIFY constant so you can override SSL verification.
+* Add: Files Manager in Dev Tools (+ improved file cleanup, locally and remotely at OpenAI and Anthropic).
+* Update: Increased the maximum embeddings results limit from 100 to 1000.
+* Update: Simplified file “purpose” options to just “analysis” or “generated” for clearer file handling.
+* Update: Enhanced the Embeddings Query Mode and Dev Tools.
+* Fix: Resolved a UI crash when selecting OpenRouter or other environments with non-standard models.
+* Fix: Chroma integration now auto-creates the database and collection when needed.
+* Fix: Prevented a rare crash in the Discussions tab.
+* Fix: Clarified and improved error messages.
 
 = 3.2.7 (2025/12/02) =
 * Add: Support for OpenRouter embedding models.
