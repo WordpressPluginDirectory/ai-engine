@@ -261,6 +261,11 @@ class Meow_MWAI_Labs_MCP_Core {
               'description' => 'Optional: fields to include (default: all). Options: meta, terms, thumbnail, author',
               'items' => [ 'type' => 'string' ],
             ],
+            'exclude' => [
+              'type' => 'array',
+              'description' => 'Optional: fields to exclude from post data. Options: content (useful for posts with huge content like many galleries)',
+              'items' => [ 'type' => 'string' ],
+            ],
           ],
           'required' => [ 'ID' ],
         ],
@@ -284,7 +289,7 @@ class Meow_MWAI_Labs_MCP_Core {
       ],
       'wp_update_post' => [
         'name' => 'wp_update_post',
-        'description' => 'Update post fields and/or meta in ONE call. Pass ID + "fields" object (post_title, post_content, post_status, etc.) and/or "meta_input" object for custom fields. Efficient for WooCommerce products: update title + price + stock together. Note: post_category REPLACES categories; use wp_add_post_terms to append instead.',
+        'description' => 'Update post fields and/or meta in ONE call. Pass ID + "fields" object (post_title, post_content, post_status, etc.) and/or "meta_input" object for custom fields. Efficient for WooCommerce products: update title + price + stock together. Note: post_category REPLACES categories; use wp_add_post_terms to append instead. Use schedule_for to easily schedule posts.',
         'inputSchema' => [
           'type' => 'object',
           'properties' => [
@@ -304,6 +309,10 @@ class Meow_MWAI_Labs_MCP_Core {
             'meta_input' => [
               'type' => 'object',
               'description' => 'Associative array of custom fields.'
+            ],
+            'schedule_for' => [
+              'type' => 'string',
+              'description' => 'Schedule post for future publication. Provide local datetime (e.g., "2026-02-02 09:00:00"). Automatically sets status to "future" and calculates GMT from WordPress timezone.'
             ],
           ],
           'required' => [ 'ID' ],
@@ -486,16 +495,43 @@ class Meow_MWAI_Labs_MCP_Core {
       ],
       'wp_upload_media' => [
         'name' => 'wp_upload_media',
-        'description' => 'Download file from URL and add to Media Library.',
+        'description' => 'Upload a file to the WordPress Media Library. Provide either a url (WordPress will download it) or base64-encoded content with a filename. Base64 mode is useful for local files but doubles the payload size — keep files under a few MB to avoid memory or timeout issues.',
         'inputSchema' => [
           'type' => 'object',
           'properties' => [
-            'url' => [ 'type' => 'string' ],
+            'url' => [
+              'type' => 'string',
+              'description' => 'URL to download the file from. Use this OR base64/filename.',
+            ],
+            'base64' => [
+              'type' => 'string',
+              'description' => 'Base64-encoded file content. Must be used together with filename.',
+            ],
+            'filename' => [
+              'type' => 'string',
+              'description' => 'Filename with extension (e.g. photo.jpg). Required when using base64.',
+            ],
             'title' => [ 'type' => 'string' ],
             'description' => [ 'type' => 'string' ],
             'alt' => [ 'type' => 'string' ],
           ],
-          'required' => [ 'url' ],
+        ],
+      ],
+      'wp_upload_request' => [
+        'name' => 'wp_upload_request',
+        'description' => 'Upload a local file to the WordPress Media Library via a temporary upload endpoint. Use this instead of wp_upload_media when you have a local file (not a URL) — passing large base64 strings through MCP is impractical and will likely exceed context limits. Call this tool with the filename and optional metadata; it returns a one-time upload URL. Then use curl to POST the file: curl -X POST -F "file=@/local/path/file.jpg" "<upload_url>". The upload URL expires after 5 minutes and can only be used once.',
+        'inputSchema' => [
+          'type' => 'object',
+          'properties' => [
+            'filename' => [
+              'type' => 'string',
+              'description' => 'Filename with extension (e.g. photo.jpg).',
+            ],
+            'title' => [ 'type' => 'string' ],
+            'description' => [ 'type' => 'string' ],
+            'alt' => [ 'type' => 'string' ],
+          ],
+          'required' => [ 'filename' ],
         ],
       ],
       'wp_update_media' => [
@@ -571,7 +607,7 @@ class Meow_MWAI_Labs_MCP_Core {
     // Add category and annotations to each tool
     foreach ( $tools as &$tool ) {
       if ( !isset( $tool['category'] ) ) {
-        $tool['category'] = 'Core';
+        $tool['category'] = 'AI Engine (Core)';
       }
 
       // Add MCP tool annotations based on tool name/behavior
@@ -606,7 +642,7 @@ class Meow_MWAI_Labs_MCP_Core {
   #endregion
 
   #region Callback
-  public function handle_call( $prev, string $tool, array $args, int $id ) {
+  public function handle_call( $prev, string $tool, array $args, ?int $id ) {
     // Security check is already done in the MCP auth layer
     // If we reach here, the user is authorized to use MCP
     if ( !empty( $prev ) || !isset( $this->tools()[ $tool ] ) ) {
@@ -617,7 +653,7 @@ class Meow_MWAI_Labs_MCP_Core {
   #endregion
 
   #region Dispatcher
-  private function dispatch( string $tool, array $a, int $id ): array {
+  private function dispatch( string $tool, array $a, ?int $id ): array {
     $r = [ 'jsonrpc' => '2.0', 'id' => $id ];
 
     switch ( $tool ) {
@@ -920,6 +956,15 @@ class Meow_MWAI_Labs_MCP_Core {
         }
 
         $include = $a['include'] ?? [ 'meta', 'terms', 'thumbnail', 'author' ];
+        $exclude = $a['exclude'] ?? [];
+
+        // Handle JSON strings (some MCP clients send arrays as JSON strings)
+        if ( is_string( $include ) ) {
+          $include = json_decode( $include, true ) ?? [];
+        }
+        if ( is_string( $exclude ) ) {
+          $exclude = json_decode( $exclude, true ) ?? [];
+        }
 
         $snapshot = [
           'post' => [
@@ -927,7 +972,6 @@ class Meow_MWAI_Labs_MCP_Core {
             'post_title' => $p->post_title,
             'post_type' => $p->post_type,
             'post_status' => $p->post_status,
-            'post_content' => $this->clean_html( $p->post_content ),
             'post_excerpt' => $this->post_excerpt( $p ),
             'post_name' => $p->post_name,
             'permalink' => get_permalink( $p ),
@@ -935,6 +979,11 @@ class Meow_MWAI_Labs_MCP_Core {
             'post_modified' => $p->post_modified,
           ],
         ];
+
+        // Include content unless excluded (useful for posts with huge content)
+        if ( !in_array( 'content', $exclude ) ) {
+          $snapshot['post']['post_content'] = $this->clean_html( $p->post_content );
+        }
 
         // Include all post meta
         if ( in_array( 'meta', $include ) ) {
@@ -1015,16 +1064,23 @@ class Meow_MWAI_Labs_MCP_Core {
         if ( $a['post_name'] ?? '' ) {
           $ins['post_name'] = sanitize_title( $a['post_name'] );
         }
-        if ( !empty( $a['meta_input'] ) && is_array( $a['meta_input'] ) ) {
-          $ins['meta_input'] = $a['meta_input'];
+
+        // Handle JSON strings for meta_input (some MCP clients send objects as JSON strings)
+        $meta_input = $a['meta_input'] ?? [];
+        if ( is_string( $meta_input ) ) {
+          $meta_input = json_decode( $meta_input, true ) ?? [];
         }
+        if ( !empty( $meta_input ) && is_array( $meta_input ) ) {
+          $ins['meta_input'] = $meta_input;
+        }
+
         $new = wp_insert_post( $ins, true );
         if ( is_wp_error( $new ) ) {
           $r['error'] = [ 'code' => $new->get_error_code(), 'message' => $new->get_error_message() ];
         }
         else {
-          if ( empty( $ins['meta_input'] ) && !empty( $a['meta_input'] ) && is_array( $a['meta_input'] ) ) {
-            foreach ( $a['meta_input'] as $k => $v ) {
+          if ( empty( $ins['meta_input'] ) && !empty( $meta_input ) && is_array( $meta_input ) ) {
+            foreach ( $meta_input as $k => $v ) {
               update_post_meta( $new, sanitize_key( $k ), maybe_serialize( $v ) );
             }
           }
@@ -1039,22 +1095,48 @@ class Meow_MWAI_Labs_MCP_Core {
           break;
         }
         $c = [ 'ID' => intval( $a['ID'] ) ];
-        if ( !empty( $a['fields'] ) && is_array( $a['fields'] ) ) {
-          foreach ( $a['fields'] as $k => $v ) {
+
+        // Handle JSON strings (some MCP clients send objects as JSON strings)
+        $fields = $a['fields'] ?? [];
+        if ( is_string( $fields ) ) {
+          $fields = json_decode( $fields, true ) ?? [];
+        }
+        if ( !empty( $fields ) && is_array( $fields ) ) {
+          foreach ( $fields as $k => $v ) {
             $c[ $k ] = in_array( $k, [ 'post_content', 'post_excerpt' ], true ) ? $this->clean_html( $v ) : sanitize_text_field( $v );
           }
         }
+
+        // Handle schedule_for convenience parameter
+        if ( !empty( $a['schedule_for'] ) ) {
+          $schedule_date = sanitize_text_field( $a['schedule_for'] );
+          $c['post_status'] = 'future';
+          $c['post_date'] = $schedule_date;
+          $c['post_date_gmt'] = get_gmt_from_date( $schedule_date );
+          $c['edit_date'] = true; // Required for WordPress to respect date changes
+        }
+
         $u = ( count( $c ) > 1 ) ? wp_update_post( $c, true ) : $c['ID'];
         if ( is_wp_error( $u ) ) {
           $r['error'] = [ 'code' => $u->get_error_code(), 'message' => $u->get_error_message() ];
           break;
         }
-        if ( !empty( $a['meta_input'] ) && is_array( $a['meta_input'] ) ) {
-          foreach ( $a['meta_input'] as $k => $v ) {
+
+        // Handle JSON strings for meta_input
+        $meta_input = $a['meta_input'] ?? [];
+        if ( is_string( $meta_input ) ) {
+          $meta_input = json_decode( $meta_input, true ) ?? [];
+        }
+        if ( !empty( $meta_input ) && is_array( $meta_input ) ) {
+          foreach ( $meta_input as $k => $v ) {
             update_post_meta( $u, sanitize_key( $k ), maybe_serialize( $v ) );
           }
         }
-        $this->add_result_text( $r, 'Post #' . $u . ' updated' );
+        $msg = 'Post #' . $u . ' updated';
+        if ( !empty( $a['schedule_for'] ) ) {
+          $msg .= ' and scheduled for ' . $a['schedule_for'];
+        }
+        $this->add_result_text( $r, $msg );
         break;
 
         /* ===== Posts: delete ===== */
@@ -1089,8 +1171,15 @@ class Meow_MWAI_Labs_MCP_Core {
           break;
         }
         $pid = intval( $a['ID'] );
-        if ( !empty( $a['meta'] ) && is_array( $a['meta'] ) ) {
-          foreach ( $a['meta'] as $k => $v ) {
+
+        // Handle JSON strings for meta (some MCP clients send objects as JSON strings)
+        $meta = $a['meta'] ?? null;
+        if ( is_string( $meta ) ) {
+          $meta = json_decode( $meta, true );
+        }
+
+        if ( !empty( $meta ) && is_array( $meta ) ) {
+          foreach ( $meta as $k => $v ) {
             update_post_meta( $pid, sanitize_key( $k ), maybe_serialize( $v ) );
           }
         }
@@ -1252,9 +1341,14 @@ class Meow_MWAI_Labs_MCP_Core {
           $r['error'] = [ 'code' => -32602, 'message' => 'ID & terms required' ];
           break;
         }
+        $terms = $a['terms'];
+        // Handle JSON strings (some MCP clients send arrays as JSON strings)
+        if ( is_string( $terms ) ) {
+          $terms = json_decode( $terms, true ) ?? [];
+        }
         $tax = sanitize_key( $a['taxonomy'] ?? 'category' );
         $append = !isset( $a['append'] ) || $a['append'];
-        $set = wp_set_post_terms( intval( $a['ID'] ), $a['terms'], $tax, $append );
+        $set = wp_set_post_terms( intval( $a['ID'] ), $terms, $tax, $append );
         if ( is_wp_error( $set ) ) {
           $r['error'] = [ 'code' => $set->get_error_code(), 'message' => $set->get_error_message() ];
         }
@@ -1290,19 +1384,34 @@ class Meow_MWAI_Labs_MCP_Core {
 
         /* ===== Media: upload ===== */
       case 'wp_upload_media':
-        if ( empty( $a['url'] ) ) {
-          $r['error'] = [ 'code' => -32602, 'message' => 'url required' ];
+        $has_url = !empty( $a['url'] );
+        $has_base64 = !empty( $a['base64'] ) && !empty( $a['filename'] );
+        if ( !$has_url && !$has_base64 ) {
+          $r['error'] = [ 'code' => -32602, 'message' => 'Provide either url, or base64 + filename.' ];
           break;
         }
         try {
           require_once ABSPATH . 'wp-admin/includes/file.php';
           require_once ABSPATH . 'wp-admin/includes/media.php';
           require_once ABSPATH . 'wp-admin/includes/image.php';
-          $tmp = download_url( $a['url'] );
-          if ( is_wp_error( $tmp ) ) {
-            throw new Exception( $tmp->get_error_message(), $tmp->get_error_code() );
+
+          if ( $has_url ) {
+            $tmp = download_url( $a['url'] );
+            if ( is_wp_error( $tmp ) ) {
+              throw new Exception( $tmp->get_error_message(), $tmp->get_error_code() );
+            }
+            $file = [ 'name' => basename( parse_url( $a['url'], PHP_URL_PATH ) ), 'tmp_name' => $tmp ];
           }
-          $file = [ 'name' => basename( parse_url( $a['url'], PHP_URL_PATH ) ), 'tmp_name' => $tmp ];
+          else {
+            $decoded = base64_decode( $a['base64'], true );
+            if ( $decoded === false ) {
+              throw new Exception( 'Invalid base64 data.' );
+            }
+            $tmp = wp_tempnam( $a['filename'] );
+            file_put_contents( $tmp, $decoded );
+            $file = [ 'name' => sanitize_file_name( $a['filename'] ), 'tmp_name' => $tmp ];
+          }
+
           $id = media_handle_sideload( $file, 0, $a['description'] ?? '' );
           @unlink( $tmp );
           if ( is_wp_error( $id ) ) {
@@ -1315,6 +1424,34 @@ class Meow_MWAI_Labs_MCP_Core {
             update_post_meta( $id, '_wp_attachment_image_alt', sanitize_text_field( $a['alt'] ) );
           }
           $this->add_result_text( $r, wp_get_attachment_url( $id ) );
+        }
+        catch ( \Throwable $e ) {
+          $r['error'] = [ 'code' => $e->getCode() ?: -32603, 'message' => $e->getMessage() ];
+        }
+        break;
+
+        /* ===== Media: upload alternative (two-step) ===== */
+      case 'wp_upload_request':
+        if ( empty( $a['filename'] ) ) {
+          $r['error'] = [ 'code' => -32602, 'message' => 'filename required' ];
+          break;
+        }
+        try {
+          $token = wp_generate_password( 32, false );
+          $transient_key = 'mwai_mcp_upload_' . $token;
+          $data = [
+            'filename' => sanitize_file_name( $a['filename'] ),
+            'title' => $a['title'] ?? '',
+            'description' => $a['description'] ?? '',
+            'alt' => $a['alt'] ?? '',
+          ];
+          set_transient( $transient_key, $data, 5 * MINUTE_IN_SECONDS );
+          $upload_url = rest_url( 'mcp/v1/upload/' . $token );
+          $this->add_result_text( $r, wp_json_encode( [
+            'upload_url' => $upload_url,
+            'expires_in' => '5 minutes',
+            'usage' => 'curl -X POST -F "file=@/path/to/' . $a['filename'] . '" "' . $upload_url . '"',
+          ], JSON_PRETTY_PRINT ) );
         }
         catch ( \Throwable $e ) {
           $r['error'] = [ 'code' => $e->getCode() ?: -32603, 'message' => $e->getMessage() ];
