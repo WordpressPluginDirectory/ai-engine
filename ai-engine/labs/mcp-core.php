@@ -44,6 +44,7 @@ class Meow_MWAI_Labs_MCP_Core {
           'type' => 'object',
           'properties' => [ 'search' => [ 'type' => 'string' ] ],
         ],
+        'accessLevel' => 'read',
       ],
 
       /* -------- Users -------- */
@@ -60,6 +61,7 @@ class Meow_MWAI_Labs_MCP_Core {
             'paged' => [ 'type' => 'integer' ],
           ],
         ],
+        'accessLevel' => 'admin',
       ],
       'wp_create_user' => [
         'name' => 'wp_create_user',
@@ -75,6 +77,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'user_login', 'user_email' ],
         ],
+        'accessLevel' => 'admin',
       ],
       'wp_update_user' => [
         'name' => 'wp_update_user',
@@ -96,6 +99,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'admin',
       ],
 
       /* -------- Comments -------- */
@@ -113,6 +117,7 @@ class Meow_MWAI_Labs_MCP_Core {
             'paged' => [ 'type' => 'integer' ],
           ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_create_comment' => [
         'name' => 'wp_create_comment',
@@ -129,6 +134,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'post_id', 'comment_content' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_update_comment' => [
         'name' => 'wp_update_comment',
@@ -148,6 +154,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'comment_ID' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_delete_comment' => [
         'name' => 'wp_delete_comment',
@@ -160,6 +167,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'comment_ID' ],
         ],
+        'accessLevel' => 'admin',
       ],
 
       /* -------- Options -------- */
@@ -171,6 +179,7 @@ class Meow_MWAI_Labs_MCP_Core {
           'properties' => [ 'key' => [ 'type' => 'string' ] ],
           'required' => [ 'key' ],
         ],
+        'accessLevel' => 'admin',
       ],
       'wp_update_option' => [
         'name' => 'wp_update_option',
@@ -183,6 +192,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'key', 'value' ],
         ],
+        'accessLevel' => 'admin',
       ],
 
       /* -------- Counts -------- */
@@ -193,6 +203,7 @@ class Meow_MWAI_Labs_MCP_Core {
           'type' => 'object',
           'properties' => [ 'post_type' => [ 'type' => 'string' ] ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_count_terms' => [
         'name' => 'wp_count_terms',
@@ -202,6 +213,7 @@ class Meow_MWAI_Labs_MCP_Core {
           'properties' => [ 'taxonomy' => [ 'type' => 'string' ] ],
           'required' => [ 'taxonomy' ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_count_media' => [
         'name' => 'wp_count_media',
@@ -213,6 +225,7 @@ class Meow_MWAI_Labs_MCP_Core {
             'before' => [ 'type' => 'string' ],
           ],
         ],
+        'accessLevel' => 'read',
       ],
 
       /* -------- Post-types -------- */
@@ -220,6 +233,7 @@ class Meow_MWAI_Labs_MCP_Core {
         'name' => 'wp_get_post_types',
         'description' => 'List public post types (key, label).',
         'inputSchema' => $this->empty_schema(),
+        'accessLevel' => 'read',
       ],
 
       /* -------- Posts -------- */
@@ -239,6 +253,7 @@ class Meow_MWAI_Labs_MCP_Core {
             'paged' => [ 'type' => 'integer' ],
           ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_get_post' => [
         'name' => 'wp_get_post',
@@ -248,6 +263,7 @@ class Meow_MWAI_Labs_MCP_Core {
           'properties' => [ 'ID' => [ 'type' => 'integer' ] ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_get_post_snapshot' => [
         'name' => 'wp_get_post_snapshot',
@@ -269,6 +285,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_create_post' => [
         'name' => 'wp_create_post',
@@ -286,6 +303,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'post_title' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_update_post' => [
         'name' => 'wp_update_post',
@@ -317,6 +335,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_delete_post' => [
         'name' => 'wp_delete_post',
@@ -329,6 +348,23 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'admin',
+      ],
+      'wp_alter_post' => [
+        'name' => 'wp_alter_post',
+        'description' => 'Search-and-replace inside a post field without re-uploading the entire content. Efficient for making small edits to long content. Supports regex patterns (PHP-PCRE with delimiters like /pattern/i).',
+        'inputSchema' => [
+          'type' => 'object',
+          'properties' => [
+            'ID' => [ 'type' => 'integer', 'description' => 'Post ID.' ],
+            'field' => [ 'type' => 'string', 'description' => 'Field to modify: post_content, post_excerpt, or post_title.' ],
+            'search' => [ 'type' => 'string', 'description' => 'Text or regex pattern to search for.' ],
+            'replace' => [ 'type' => 'string', 'description' => 'Replacement text.' ],
+            'regex' => [ 'type' => 'boolean', 'description' => 'Treat search as regex pattern (default: false).' ],
+          ],
+          'required' => [ 'ID', 'field', 'search', 'replace' ],
+        ],
+        'accessLevel' => 'write',
       ],
 
       /* -------- Post-meta -------- */
@@ -343,6 +379,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_update_post_meta' => [
         'name' => 'wp_update_post_meta',
@@ -357,6 +394,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_delete_post_meta' => [
         'name' => 'wp_delete_post_meta',
@@ -370,6 +408,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID', 'key' ],
         ],
+        'accessLevel' => 'admin',
       ],
 
       /* -------- Featured image -------- */
@@ -384,6 +423,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'post_id' ],
         ],
+        'accessLevel' => 'write',
       ],
 
       /* -------- Taxonomies / Terms -------- */
@@ -394,6 +434,7 @@ class Meow_MWAI_Labs_MCP_Core {
           'type' => 'object',
           'properties' => [ 'post_type' => [ 'type' => 'string' ] ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_get_terms' => [
         'name' => 'wp_get_terms',
@@ -408,6 +449,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'taxonomy' ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_create_term' => [
         'name' => 'wp_create_term',
@@ -423,6 +465,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'taxonomy', 'term_name' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_update_term' => [
         'name' => 'wp_update_term',
@@ -439,6 +482,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'term_id', 'taxonomy' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_delete_term' => [
         'name' => 'wp_delete_term',
@@ -451,6 +495,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'term_id', 'taxonomy' ],
         ],
+        'accessLevel' => 'admin',
       ],
       'wp_get_post_terms' => [
         'name' => 'wp_get_post_terms',
@@ -463,6 +508,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_add_post_terms' => [
         'name' => 'wp_add_post_terms',
@@ -477,6 +523,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID', 'terms' ],
         ],
+        'accessLevel' => 'write',
       ],
 
       /* -------- Media -------- */
@@ -492,6 +539,7 @@ class Meow_MWAI_Labs_MCP_Core {
             'limit' => [ 'type' => 'integer' ],
           ],
         ],
+        'accessLevel' => 'read',
       ],
       'wp_upload_media' => [
         'name' => 'wp_upload_media',
@@ -516,6 +564,7 @@ class Meow_MWAI_Labs_MCP_Core {
             'alt' => [ 'type' => 'string' ],
           ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_upload_request' => [
         'name' => 'wp_upload_request',
@@ -533,6 +582,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'filename' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_update_media' => [
         'name' => 'wp_update_media',
@@ -548,6 +598,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'write',
       ],
       'wp_delete_media' => [
         'name' => 'wp_delete_media',
@@ -560,6 +611,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'ID' ],
         ],
+        'accessLevel' => 'admin',
       ],
 
       /* -------- MWAI Vision / Image -------- */
@@ -575,6 +627,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'message' ],
         ],
+        'accessLevel' => 'read',
       ],
       'mwai_image' => [
         'name' => 'mwai_image',
@@ -591,6 +644,7 @@ class Meow_MWAI_Labs_MCP_Core {
           ],
           'required' => [ 'message' ],
         ],
+        'accessLevel' => 'write',
       ],
 
     ];
@@ -1094,16 +1148,30 @@ class Meow_MWAI_Labs_MCP_Core {
           $r['error'] = [ 'code' => -32602, 'message' => 'ID required' ];
           break;
         }
-        $c = [ 'ID' => intval( $a['ID'] ) ];
+        $post_id = intval( $a['ID'] );
+        $c = [ 'ID' => $post_id ];
 
         // Handle JSON strings (some MCP clients send objects as JSON strings)
-        $fields = $a['fields'] ?? [];
+        $fields_raw = $a['fields'] ?? null;
+        $fields = $fields_raw;
         if ( is_string( $fields ) ) {
-          $fields = json_decode( $fields, true ) ?? [];
+          $fields = json_decode( $fields, true );
+          // Detect truncated/malformed JSON
+          if ( $fields === null && strlen( $fields_raw ) > 0 ) {
+            $r['error'] = [ 'code' => -32602, 'message' => 'Fields parameter is invalid JSON (possibly truncated). Content may be too large for the transport. Raw length: ' . strlen( $fields_raw ) . ' bytes' ];
+            break;
+          }
         }
+        $fields = $fields ?? [];
+
+        // Track what we're trying to update for verification
+        $content_to_verify = null;
         if ( !empty( $fields ) && is_array( $fields ) ) {
           foreach ( $fields as $k => $v ) {
             $c[ $k ] = in_array( $k, [ 'post_content', 'post_excerpt' ], true ) ? $this->clean_html( $v ) : sanitize_text_field( $v );
+          }
+          if ( isset( $c['post_content'] ) ) {
+            $content_to_verify = $c['post_content'];
           }
         }
 
@@ -1116,27 +1184,69 @@ class Meow_MWAI_Labs_MCP_Core {
           $c['edit_date'] = true; // Required for WordPress to respect date changes
         }
 
-        $u = ( count( $c ) > 1 ) ? wp_update_post( $c, true ) : $c['ID'];
-        if ( is_wp_error( $u ) ) {
-          $r['error'] = [ 'code' => $u->get_error_code(), 'message' => $u->get_error_message() ];
+        // Handle JSON strings for meta_input
+        $meta_raw = $a['meta_input'] ?? null;
+        $meta_input = $meta_raw;
+        if ( is_string( $meta_input ) ) {
+          $meta_input = json_decode( $meta_input, true );
+          if ( $meta_input === null && strlen( $meta_raw ) > 0 ) {
+            $r['error'] = [ 'code' => -32602, 'message' => 'meta_input parameter is invalid JSON (possibly truncated).' ];
+            break;
+          }
+        }
+        $meta_input = $meta_input ?? [];
+        $has_meta = !empty( $meta_input ) && is_array( $meta_input );
+        $has_fields = count( $c ) > 1;
+
+        // Error if nothing to update
+        if ( !$has_fields && !$has_meta ) {
+          $hint = '';
+          if ( isset( $a['fields'] ) || isset( $a['meta_input'] ) ) {
+            $hint = ' (parameters were provided but parsed as empty - check for malformed JSON)';
+          }
+          $r['error'] = [ 'code' => -32602, 'message' => 'No fields or meta_input provided to update' . $hint ];
           break;
         }
 
-        // Handle JSON strings for meta_input
-        $meta_input = $a['meta_input'] ?? [];
-        if ( is_string( $meta_input ) ) {
-          $meta_input = json_decode( $meta_input, true ) ?? [];
+        // Update post fields if any
+        $u = $post_id;
+        if ( $has_fields ) {
+          $u = wp_update_post( $c, true );
+          if ( is_wp_error( $u ) ) {
+            $r['error'] = [ 'code' => $u->get_error_code(), 'message' => $u->get_error_message() ];
+            break;
+          }
         }
-        if ( !empty( $meta_input ) && is_array( $meta_input ) ) {
+
+        // Update meta if any
+        if ( $has_meta ) {
           foreach ( $meta_input as $k => $v ) {
             update_post_meta( $u, sanitize_key( $k ), maybe_serialize( $v ) );
           }
         }
-        $msg = 'Post #' . $u . ' updated';
-        if ( !empty( $a['schedule_for'] ) ) {
-          $msg .= ' and scheduled for ' . $a['schedule_for'];
+
+        // Verify the update actually took effect
+        $updated_post = get_post( $u );
+        $result = [
+          'post_id' => $u,
+          'post_modified' => $updated_post->post_modified,
+        ];
+
+        // Verify content was saved correctly if we tried to update it
+        if ( $content_to_verify !== null ) {
+          $saved_content = $updated_post->post_content;
+          $result['content_length'] = strlen( $saved_content );
+          if ( $saved_content !== $content_to_verify ) {
+            $result['warning'] = 'Content differs from input (sanitization applied or save failed)';
+            $result['expected_length'] = strlen( $content_to_verify );
+          }
         }
-        $this->add_result_text( $r, $msg );
+
+        if ( !empty( $a['schedule_for'] ) ) {
+          $result['scheduled_for'] = $a['schedule_for'];
+        }
+
+        $this->add_result_text( $r, wp_json_encode( $result, JSON_PRETTY_PRINT ) );
         break;
 
         /* ===== Posts: delete ===== */
@@ -1152,6 +1262,67 @@ class Meow_MWAI_Labs_MCP_Core {
         else {
           $r['error'] = [ 'code' => -32603, 'message' => 'Deletion failed' ];
         }
+        break;
+
+        /* ===== Posts: alter (search/replace) ===== */
+      case 'wp_alter_post':
+        if ( empty( $a['ID'] ) || empty( $a['field'] ) || !isset( $a['search'] ) || !isset( $a['replace'] ) ) {
+          $r['error'] = [ 'code' => -32602, 'message' => 'ID, field, search, and replace required' ];
+          break;
+        }
+        $post_id = intval( $a['ID'] );
+        $field = sanitize_key( $a['field'] );
+        $search = $a['search'];
+        $replace = $a['replace'];
+        $is_regex = !empty( $a['regex'] );
+
+        // Validate field
+        $allowed_fields = [ 'post_content', 'post_excerpt', 'post_title' ];
+        if ( !in_array( $field, $allowed_fields, true ) ) {
+          $r['error'] = [ 'code' => -32602, 'message' => 'Field must be: post_content, post_excerpt, or post_title' ];
+          break;
+        }
+
+        $post = get_post( $post_id );
+        if ( !$post ) {
+          $r['error'] = [ 'code' => -32602, 'message' => 'Post not found' ];
+          break;
+        }
+
+        $content = $post->$field;
+        $count = 0;
+
+        if ( $is_regex ) {
+          // Validate regex pattern
+          set_error_handler( fn () => false );
+          $test = preg_match( $search, '' );
+          restore_error_handler();
+          if ( $test === false ) {
+            $r['error'] = [ 'code' => -32602, 'message' => 'Invalid regex pattern' ];
+            break;
+          }
+          $new_content = preg_replace( $search, $replace, $content, -1, $count );
+          if ( $new_content === null ) {
+            $r['error'] = [ 'code' => -32603, 'message' => 'Regex error' ];
+            break;
+          }
+        }
+        else {
+          $new_content = str_replace( $search, $replace, $content, $count );
+        }
+
+        if ( $count === 0 ) {
+          $this->add_result_text( $r, 'No occurrences found; post unchanged.' );
+          break;
+        }
+
+        $update = wp_update_post( [ 'ID' => $post_id, $field => $new_content ], true );
+        if ( is_wp_error( $update ) ) {
+          $r['error'] = [ 'code' => $update->get_error_code(), 'message' => $update->get_error_message() ];
+          break;
+        }
+
+        $this->add_result_text( $r, $count . ' replacement' . ( $count === 1 ? '' : 's' ) . ' applied to ' . $field . ' of post #' . $post_id );
         break;
 
         /* ===== Post-meta ===== */
