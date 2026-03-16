@@ -43,6 +43,12 @@ class Meow_MWAI_Modules_Forms_Manager {
       return '';
     }
 
+    // Check post status: only published forms are publicly accessible.
+    // Private/draft forms require the current user to have read permission.
+    if ( $post->post_status !== 'publish' && !current_user_can( 'read_post', $post_id ) ) {
+      return '';
+    }
+
     // Ensure themes can be enqueued by nested shortcodes if needed
     // Actual scripts/styles will be handled by the individual form shortcodes
     $content = $post->post_content;

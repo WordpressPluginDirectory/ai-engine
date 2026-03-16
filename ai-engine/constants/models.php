@@ -4,6 +4,32 @@
 
 define( 'MWAI_OPENAI_MODELS', [
   /*
+    GPT-5.4
+    Our most capable model for professional work
+    https://platform.openai.com/docs/models/gpt-5.4
+    */
+  [
+    'model' => 'gpt-5.4',
+    'name' => 'GPT-5.4',
+    'family' => 'gpt-5',
+    'features' => ['completion'],
+    'price' => [
+      'in' => 2.50,
+      'out' => 15.00,
+    ],
+    'type' => 'token',
+    'unit' => 1 / 1000000,
+    'maxCompletionTokens' => 128000,
+    'maxContextualTokens' => 1050000,
+    'finetune' => false,
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity'],
+    'tools' => ['web_search', 'image_generation', 'file_search', 'code_interpreter'],
+    'params' => [
+      'reasoning' => ['none', 'low', 'medium', 'high', 'xhigh'],
+      'verbosity' => ['low', 'medium', 'high']
+    ]
+  ],
+  /*
     GPT-5.2
     The best model for coding and agentic tasks across industries
     https://platform.openai.com/docs/models/gpt-5.2
@@ -861,6 +887,23 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
+    'model' => 'claude-sonnet-4-6',
+    'name' => 'Claude Sonnet 4.6',
+    'family' => 'claude-4',
+    'features' => ['completion'],
+    'price' => [
+      'in' => 3.00,
+      'out' => 15.00,
+    ],
+    'type' => 'token',
+    'unit' => 1 / 1000000,
+    'maxCompletionTokens' => 64000,
+    'maxContextualTokens' => 200000,
+    'finetune' => false,
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'latest'],
+    'tools' => ['code_interpreter', 'thinking']
+  ],
+  [
     'model' => 'claude-sonnet-4-5-20250929',
     'name' => 'Claude Sonnet 4.5 (2025/09/29)',
     'family' => 'claude-4',
@@ -891,7 +934,7 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 64000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'latest'],
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [

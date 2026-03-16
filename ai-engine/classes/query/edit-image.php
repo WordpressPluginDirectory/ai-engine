@@ -30,7 +30,7 @@ class Meow_MWAI_Query_EditImage extends Meow_MWAI_Query_Image {
       $this->set_media_id( intval( $mediaId ) );
       $path = get_attached_file( $this->mediaId );
       if ( $path ) {
-        $this->add_file( Meow_MWAI_Query_DroppedFile::from_path( $path, 'vision' ) );
+        $this->add_file( Meow_MWAI_Query_DroppedFile::from_path( $path, 'analysis' ) );
       }
       else {
         error_log( 'EditImage: Could not find file for mediaId: ' . $this->mediaId );

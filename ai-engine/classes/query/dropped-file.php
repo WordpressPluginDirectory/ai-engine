@@ -4,7 +4,7 @@ class Meow_MWAI_Query_DroppedFile {
   private $data;
   private $rawData;
   private $type; // Defines what the data is about ('refId', 'url', or 'data')
-  private $purpose; // Can be 'assistant', 'vision' or 'files' => this needs to be checked
+  private $purpose; // 'analysis' or 'generated'
   private $mimeType; // 'image/jpeg' or any other mime type
   private $fileId; // The ID of the file in the database
   public $originalPath; // The original file path (for files loaded from disk)
@@ -85,26 +85,9 @@ class Meow_MWAI_Query_DroppedFile {
     return new Meow_MWAI_Query_DroppedFile( $fileId, 'provider_file_id', $purpose, $mimeType );
   }
 
-  /**
-   * @deprecated Use from_provider_file_id() instead
-   * TODO: Remove after March 2026 - Legacy method
-   */
-  public static function from_openai_file_id( $fileId, $purpose, $mimeType = null ) {
-    return self::from_provider_file_id( $fileId, $purpose, $mimeType );
-  }
-
   public function __construct( $data, $type, $purpose, $mimeType = null, $fileId = null ) {
-    // TODO: Remove after March 2026 - Legacy type support
-    if ( $type === 'openai_file_id' ) {
-      $type = 'provider_file_id';
-    }
     if ( !empty( $type ) && $type !== 'refId' && $type !== 'url' && $type !== 'data' && $type !== 'provider_file_id' ) {
       throw new Exception( 'AI Engine: The file type can only be refId, url, data, or provider_file_id.' );
-    }
-    // TODO: Remove after March 2026 - Legacy purpose mapping
-    $legacyPurposes = [ 'vision', 'files', 'transcription', 'code_execution', 'assistant-in' ];
-    if ( in_array( $purpose, $legacyPurposes, true ) ) {
-      $purpose = 'analysis';
     }
     if ( !empty( $purpose ) && $purpose !== 'analysis' && $purpose !== 'generated' ) {
       throw new Exception( 'AI Engine: The file purpose can only be analysis or generated.' );

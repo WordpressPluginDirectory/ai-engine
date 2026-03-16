@@ -1191,6 +1191,10 @@ class Meow_MWAI_Engines_Google extends Meow_MWAI_Engines_Core {
           $tags = [ 'core', 'embedding', 'matryoshka' ]; // Reset tags for embedding
           $features = [ 'embedding' ];
           $tools = []; // Embedding models don't have tools
+          // Gemini Embedding 2+ supports multimodal (images, etc.)
+          if ( preg_match( '/embedding-2/', $model_id ) ) {
+            $tags[] = 'image';
+          }
           // Check if it's experimental
           if ( strpos( $model_id, '-exp' ) !== false ) {
             $tags[] = 'experimental';

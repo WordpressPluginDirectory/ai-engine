@@ -243,12 +243,12 @@ class Meow_MWAI_Engines_Core {
       $isResponsesApi = false;
 
       // Method 1: Check if query has a previous response ID from Responses API
-      if ( !empty( $query->previousResponseId ) && $this->core->responseIdManager->is_valid_for_responses_api( $query->previousResponseId ) ) {
+      if ( !empty( $query->previousResponseId ) && $this->core->responseIdManager->is_responses_api_id( $query->previousResponseId ) ) {
         $isResponsesApi = true;
       }
 
       // Method 2: Check if the reply has a Responses API response ID
-      if ( !$isResponsesApi && !empty( $reply->id ) && $this->core->responseIdManager->is_valid_for_responses_api( $reply->id ) ) {
+      if ( !$isResponsesApi && !empty( $reply->id ) && $this->core->responseIdManager->is_responses_api_id( $reply->id ) ) {
         $isResponsesApi = true;
       }
 
@@ -297,6 +297,14 @@ class Meow_MWAI_Engines_Core {
             'feedbacks' => []
           ];
         }
+
+        // Allow modifying function call arguments before execution
+        $needFeedback['arguments'] = apply_filters(
+          'mwai_function_call_params',
+          $needFeedback['arguments'],
+          $needFeedback,
+          $reply
+        );
 
         // Get the value related to this feedback (usually, a function call)
         $value = apply_filters( 'mwai_ai_feedback', null, $needFeedback, $reply );
@@ -632,8 +640,6 @@ class Meow_MWAI_Engines_Core {
               }
               else if ( !empty( $content ) || $content === '0' ) {
                 // For regular string content - only process non-empty strings (but allow '0')
-                // TODO: This fixes an issue where empty strings were causing [Object] to appear in the chatbot during streaming.
-                // If no issues are reported after November 2025, this TODO comment can be removed (keep the code as-is).
 
                 // TO CHECK: Not sure why we need to do this to make sure there is a line return in the chatbot
                 // If we don't do this, HuggingFace streams "\n" as a token without anything else, and the

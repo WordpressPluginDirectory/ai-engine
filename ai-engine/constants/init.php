@@ -111,6 +111,8 @@ define( 'MWAI_OPTIONS', [
   'search_frontend_method' => 'wordpress',
   'search_frontend_env_id' => null,
   'search_website_context' => 'This is a website with useful information and content.',
+  'module_library_search' => false,
+  'library_search_env_id' => null,
   'module_forms' => false,
   'forms_editor' => true,
   'module_blocks' => false,

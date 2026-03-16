@@ -2,6 +2,8 @@
 
 class Meow_MWAI_Query_Embed extends Meow_MWAI_Query_Base {
   public ?int $dimensions = null;
+  public ?string $imageData = null;
+  public ?string $imageMimeType = null;
 
   public function __construct( $messageOrQuery = null ) {
     if ( is_a( $messageOrQuery, 'Meow_MWAI_Query_Text' ) || is_a( $messageOrQuery, 'Meow_MWAI_Query_Assistant' ) ) {
@@ -35,10 +37,15 @@ class Meow_MWAI_Query_Embed extends Meow_MWAI_Query_Base {
     $this->feature = 'embedding';
   }
 
-  /**
-  * Set the dimensions for the embedding model
-  * @param int $dimensions
-  */
+  public function set_image_data( $base64, $mimeType ) {
+    $this->imageData = $base64;
+    $this->imageMimeType = $mimeType;
+  }
+
+  public function has_image() {
+    return !empty( $this->imageData );
+  }
+
   public function set_dimensions( $dimensions ) {
     $this->dimensions = $dimensions;
   }

@@ -800,10 +800,10 @@ class Meow_MWAI_API {
       $query->image_remote_upload = $params['image_remote_upload'];
     }
     if ( !empty( $url ) ) {
-      $query->add_file( Meow_MWAI_Query_DroppedFile::from_url( $url, 'vision' ) );
+      $query->add_file( Meow_MWAI_Query_DroppedFile::from_url( $url, 'analysis' ) );
     }
     else if ( !empty( $path ) ) {
-      $query->add_file( Meow_MWAI_Query_DroppedFile::from_path( $path, 'vision' ) );
+      $query->add_file( Meow_MWAI_Query_DroppedFile::from_path( $path, 'analysis' ) );
     }
     $reply = $mwai_core->run_query( $query );
     return $reply->result;
@@ -941,8 +941,7 @@ class Meow_MWAI_API {
     if ( empty( $path ) ) {
       throw new Exception( 'The media cannot be found.' );
     }
-    // TODO: Maybe 'vision' should be 'edit'.
-    $query->add_file( Meow_MWAI_Query_DroppedFile::from_path( $path, 'vision' ) );
+    $query->add_file( Meow_MWAI_Query_DroppedFile::from_path( $path, 'analysis' ) );
     $reply = $mwai_core->run_query( $query );
     return $reply->result;
   }
@@ -1038,7 +1037,7 @@ class Meow_MWAI_API {
    * @param array|null $file The file array from $_FILES.
    * @param string|null $base64 Base64 encoded file data.
    * @param string|null $filename The filename for base64 uploads.
-   * @param string $purpose The purpose of the file upload (e.g., 'files', 'vision', 'assistant').
+   * @param string $purpose The purpose of the file upload ('analysis' or 'generated').
    * @param int $ttl Time to live in seconds. Default 3600 (1 hour).
    * @param string|null $target Target location: 'uploads' or 'library'.
    * @param array $metadata Additional metadata to store with the file.

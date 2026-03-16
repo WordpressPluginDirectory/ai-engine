@@ -108,14 +108,6 @@ class Meow_MWAI_Services_ResponseIdManager {
   }
 
   /**
-  * Check if a response ID is valid for OpenAI Responses API
-  * TODO: Remove after March 2026 - Alias for backward compatibility
-  */
-  public function is_valid_for_responses_api( string $responseId ): bool {
-    return $this->is_responses_api_id( $responseId );
-  }
-
-  /**
   * Detect provider from response ID format
   */
   private function detect_provider( string $responseId ): string {

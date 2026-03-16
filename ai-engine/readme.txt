@@ -1,11 +1,11 @@
-=== AI Engine - The Chatbot and AI Framework for WordPress ===
+=== AI Engine - The Chatbot, AI Framework & MCP for WordPress ===
 Contributors: TigrouMeow
 Tags: ai, chatbot, gpt, claude, openai
 Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.3.7
+Stable tag: 3.4.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -180,6 +180,7 @@ AI Engine can also connect to external MCP servers, extending your chatbots with
 * **Content-Aware** — Let AI use your post and page content as context for smarter responses.
 * **Function Calling** — Connect AI to WordPress functions, WooCommerce, or any custom API.
 * **Cross-Site Chatbots** — Embed your chatbots on external websites.
+* **Editor Assistant** — An AI sidebar in the post editor that can read, rewrite, insert, and rearrange your content blocks through chained function calls.
 * **Realtime Audio** — Voice-based conversations with AI in real time.
 * **Statistics & Usage Control** — Track usage, set limits per role, and monitor costs.
 * **Extra MCP Tools** — Adds plugin, theme, database, Polylang, and WooCommerce management to the MCP server.
@@ -262,6 +263,45 @@ Start with the [Basics guide](https://ai.thehiddendocs.com/basics/) for installa
 Report security vulnerabilities through the [Patchstack Vulnerability Disclosure Program](https://patchstack.com/database/vdp/9e5fbbbc-964a-4204-8bc0-198f21284efd).
 
 == Changelog ==
+
+= 3.4.4 (2026/03/15) =
+* Fix: Hotfix resolves MCP server connection failures with clients using protocol version 2024-11-05 by adding automatic version negotiation.
+* Add: Display shortcut prompts and names in the Discussions tab.
+* Add: Introduce image embeddings support (Gemini Embedding 2) with multimodal embedding: bulk media push, and an AI-powered Library Search that replaces the native Media Library Search.
+* Fix: Resolve a broken access control issue in the AI Forms shortcode to ensure only authorized users can access protected content (Private Page/Post).
+* Fix: Prevent crashes when working with multi‑modal messages.
+* Fix: Prevent the Embeddings screen from crashing when closing a modal.
+* Update: Preserve links and inline HTML formatting in both the Editor Assistant and Magic Wand tools.
+* Update: Refactor Magic Wand actions to use system messages.
+* Update: Clean up old, deprecated options and legacy migration code.
+* Update: Fixed Quick Test for Anthropic to use the models endpoint.
+* Update: Chatbot Max Height moved to the Appearance section.
+* Update: Rename Assistant Mode to Chatbot Mode in AI Forms, you can now use any chatbot to handle your AI Forms.
+* Fix: Improve the discussions shortcode by falling back to customId to avoid invalid class names.
+* Fix: Styles for the AI Chatbot Block are back.
+
+= 3.4.1 (2026/03/06) =
+* Update: Hide the Editor Assistant functions from the chatbot settings to simplify the interface.
+* Add: Support for the new GPT-5.4 model for improved AI responses.
+
+= 3.4.0 (2026/03/04) =
+* Add: Introduce a fully featured Editor Assistant sidebar (with a client-side feedback loop for chained AI actions). It's called Assistant in the Admin Modules.
+* Add: Introduce new dev filters (`mwai_mcp_server` and `mwai_function_call_params`) for customizing MCP servers and function call parameters.
+* Add: Allow ignoring posts during embeddings sync, with a “hide” icon for linked posts, a “Show Ignored” modal, and a `mwai_embeddings_sync_post` filter for developers.
+* Fix: Hotfix chat sessions so the chat ID resets correctly when needed.
+* Fix: Restore the missing scope for AI Search.
+* Update: Remove outdated internal TODOs, deprecated fields, legacy crons, and old migration code.
+
+= 3.3.9 (2026/02/21) =
+* Add: Cross Site now support shorcuts (Quick Actions), blocks (GDPR-friendly), etc.
+* Update: Modernized all Gutenberg Blocks.
+* Fix: Avoid crashes caused by Claude when using MCP tools together with function calling.
+* Fix: Prevent React-related crashes during streaming.
+
+= 3.3.8 (2026/02/18) =
+* Add: Support for the Claude Sonnet 4.6 model.
+* Add: Forward Anthropic keepalive events to the browser.
+* Add: Make Realtime transcript captions clickable links.
 
 = 3.3.7 (2026/02/14) =
 * Add: Introduced role-based access control for MCP with three levels (admin, read-write, read-only).

@@ -53,8 +53,10 @@ class Meow_MWAI_Rest_Settings extends Meow_MWAI_Rest_Base {
         'module_suggestions' => isset( $params['options']['module_suggestions'] ),
         'module_chatbots' => isset( $params['options']['module_chatbots'] ),
         'module_search' => isset( $params['options']['module_search'] ),
+        'module_library_search' => isset( $params['options']['module_library_search'] ),
         'module_tasks' => isset( $params['options']['module_tasks'] ),
         'module_advisor' => isset( $params['options']['module_advisor'] ),
+        'module_assistant' => isset( $params['options']['module_assistant'] ),
       ] );
       if ( !empty( $filters_options['module_mcp'] ) && empty( $this->core->get_option( 'mcp_bearer_token' ) ) ) {
         $token = bin2hex( random_bytes( 32 ) );

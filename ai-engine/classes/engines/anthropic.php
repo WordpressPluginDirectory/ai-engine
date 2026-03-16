@@ -398,10 +398,12 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_ChatML {
       $body = [
         'model' => $query->model,
         'max_tokens' => $query->maxTokens,
-        'temperature' => $query->temperature,
         'stream' => !is_null( $streamCallback ),
         'messages' => []
       ];
+      if ( !empty( $query->temperature ) ) {
+        $body['temperature'] = $query->temperature;
+      }
 
       if ( !empty( $query->instructions ) ) {
         $body['system'] = [
@@ -419,6 +421,34 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_ChatML {
       if ( !empty( $query->blocks ) ) {
         foreach ( $query->blocks as $feedback_block ) {
           $contentBlock = $feedback_block['rawMessage']['content'];
+
+          // Server-managed tool blocks (MCP, web search, etc.) are handled internally by
+          // Anthropic. When the response also contains regular tool_use (stop_reason: tool_use),
+          // the server-managed tools may not have completed. We must strip these blocks from
+          // the replayed assistant message since the API rejects them without matching result
+          // blocks (which only the server can provide).
+          if ( is_array( $contentBlock ) ) {
+            $serverManagedTypes = [
+              'mcp_tool_use', 'mcp_tool_result',
+              'server_tool_use', 'web_search_tool_result'
+            ];
+            $strippedTools = [];
+            foreach ( $contentBlock as $item ) {
+              $type = $item['type'] ?? '';
+              if ( in_array( $type, $serverManagedTypes ) && $type !== 'mcp_tool_result' && $type !== 'web_search_tool_result' ) {
+                $strippedTools[] = ( $item['name'] ?? $type ) . ' (' . ( $item['server_name'] ?? 'server' ) . ')';
+              }
+            }
+            if ( !empty( $strippedTools ) ) {
+              Meow_MWAI_Logging::warn( 'Anthropic: Server-managed tool call (' . implode( ', ', $strippedTools ) .
+                ') was interrupted by a function call. This is currently a limitation of the Anthropic API ' .
+                'when MCP/server tools and function calling are used together.' );
+            }
+            $contentBlock = array_values( array_filter( $contentBlock, function ( $item ) use ( $serverManagedTypes ) {
+              $type = $item['type'] ?? '';
+              return !in_array( $type, $serverManagedTypes );
+            } ) );
+          }
 
           // Process each content item individually to ensure proper handling of multiple tool_use blocks
           if ( is_array( $contentBlock ) ) {
@@ -589,35 +619,44 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_ChatML {
 
       // Add MCP servers if available
       if ( isset( $query->mcpServers ) && is_array( $query->mcpServers ) && !empty( $query->mcpServers ) ) {
-        $body['mcp_servers'] = [];
         $mcp_envs = $this->core->get_option( 'mcp_envs' );
         $this->mcpServerNames = []; // Reset MCP server names
 
+        // Resolve all MCP servers from their IDs
+        $resolved_servers = [];
         foreach ( $query->mcpServers as $mcpServer ) {
           if ( isset( $mcpServer['id'] ) ) {
-            // Find the full MCP server configuration by ID
             foreach ( $mcp_envs as $env ) {
               if ( $env['id'] === $mcpServer['id'] ) {
-                $mcp_config = [
-                  'type' => 'url',
-                  'url' => $env['url'],
-                  'name' => $env['name'],
-                  'tool_configuration' => [
-                    'enabled' => true
-                  ]
-                ];
-
-                // Add authorization token if available
-                if ( !empty( $env['token'] ) ) {
-                  $mcp_config['authorization_token'] = $env['token'];
-                }
-
-                $body['mcp_servers'][] = $mcp_config;
-                $this->mcpServerNames[] = $env['name']; // Track MCP server names
+                $resolved_servers[] = $env;
                 break;
               }
             }
           }
+        }
+
+        // Allow filtering the full list of MCP servers
+        $resolved_servers = apply_filters( 'mwai_ai_mcp_servers', $resolved_servers, $query );
+
+        // Build API-specific MCP config
+        $body['mcp_servers'] = [];
+        foreach ( $resolved_servers as $env ) {
+          $mcp_config = [
+            'type' => 'url',
+            'url' => $env['url'],
+            'name' => $env['name'],
+            'tool_configuration' => [
+              'enabled' => true
+            ]
+          ];
+
+          // Add authorization token if available
+          if ( !empty( $env['token'] ) ) {
+            $mcp_config['authorization_token'] = $env['token'];
+          }
+
+          $body['mcp_servers'][] = $mcp_config;
+          $this->mcpServerNames[] = $env['name']; // Track MCP server names
         }
       }
 
@@ -802,6 +841,14 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_ChatML {
       //     ->set_metadata( 'total_tokens', ($this->streamInTokens ?? 0) + ($this->streamOutTokens ?? 0) );
       //   call_user_func( $this->streamCallback, $event );
       // }
+    }
+    else if ( $type === 'keepalive' ) {
+      // Forward keepalive as SSE comment to keep browser connection alive during long MCP calls
+      echo ": keepalive\n\n";
+      if ( ob_get_level() > 0 ) {
+        ob_end_flush();
+      }
+      flush();
     }
     else {
       Meow_MWAI_Logging::log( "Anthropic: Unknown stream data type: $type" );
@@ -1099,57 +1146,49 @@ class Meow_MWAI_Engines_Anthropic extends Meow_MWAI_Engines_ChatML {
 
   /**
    * Check the connection to Anthropic by listing available models.
-   * Anthropic doesn't provide a models endpoint, so we just verify authentication works.
    */
   public function connection_check() {
     try {
-      // Get the endpoint
       $endpoint = apply_filters( 'mwai_anthropic_endpoint', 'https://api.anthropic.com/v1', $this->env );
+      $url = trailingslashit( $endpoint ) . 'models';
 
-      // For Anthropic, we'll use the messages endpoint with a minimal request to verify auth
-      $url = trailingslashit( $endpoint ) . 'messages';
-
-      // Create a minimal query just to test authentication
-      $testBody = [
-        'model' => 'claude-3-haiku-20240307',  // Use cheapest model
-        'max_tokens' => 1,
-        'messages' => [
-          ['role' => 'user', 'content' => 'Hi']
+      $response = wp_remote_get( $url, [
+        'headers' => [
+          'x-api-key' => $this->apiKey,
+          'anthropic-version' => '2023-06-01',
         ],
-        'metadata' => [
-          'user_id' => 'connection_test'
-        ]
-      ];
+        'timeout' => 30,
+      ] );
 
-      // Build headers with a dummy query
-      $dummyQuery = new Meow_MWAI_Query_Text( 'test' );
-      $headers = $this->build_headers( $dummyQuery );
-      $options = $this->build_options( $headers, $testBody );
+      if ( is_wp_error( $response ) ) {
+        throw new Exception( $response->get_error_message() );
+      }
 
-      // Try to make a minimal request
-      $response = $this->run_query( $url, $options );
+      $code = wp_remote_retrieve_response_code( $response );
+      $body = json_decode( wp_remote_retrieve_body( $response ), true );
 
-      // If we get here without exception, the API key is valid
-      // Get the list of available models from our constants
-      $models = $this->get_models();
-      $modelNames = array_map( function ( $model ) {
-        return $model['model'] ?? $model['name'] ?? 'unknown';
-      }, $models );
+      if ( $code === 401 || ( isset( $body['error']['type'] ) && $body['error']['type'] === 'authentication_error' ) ) {
+        throw new Exception( 'Invalid API key' );
+      }
+
+      if ( $code !== 200 ) {
+        throw new Exception( 'Connection failed: ' . ( $body['error']['message'] ?? "HTTP $code" ) );
+      }
+
+      $availableModels = [];
+      if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
+        foreach ( array_slice( $body['data'], 0, 10 ) as $model ) {
+          $availableModels[] = $model['id'] ?? 'unknown';
+        }
+      }
 
       return [
-        'models' => array_slice( $modelNames, 0, 10 ),  // Return first 10 models
+        'models' => $availableModels,
         'service' => 'Anthropic'
       ];
     }
     catch ( Exception $e ) {
-      // Check if it's an authentication error
-      $message = $e->getMessage();
-      if ( strpos( $message, 'authentication_error' ) !== false ||
-           strpos( $message, 'invalid x-api-key' ) !== false ||
-           strpos( $message, '401' ) !== false ) {
-        throw new Exception( 'Invalid API key' );
-      }
-      throw new Exception( 'Connection failed: ' . $message );
+      throw new Exception( 'Connection failed: ' . $e->getMessage() );
     }
   }
 

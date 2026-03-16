@@ -19,13 +19,6 @@ class Meow_MWAI_Modules_Discussions {
       add_filter( 'mwai_chatbot_reply', [ $this, 'chatbot_reply' ], 10, 4 );
       add_action( 'rest_api_init', [ $this, 'rest_api_init' ] );
 
-      // TODO: Remove after January 2026 - Legacy cron support
-      // Old cron scheduling removed - now handled by Tasks module
-      // if ( !wp_next_scheduled( 'mwai_discussions' ) ) {
-      //   wp_schedule_event( time(), 'hourly', 'mwai_discussions' );
-      // }
-      // add_action( 'mwai_discussions', [ $this, 'cron_discussions' ] );
-
       // Register task handler
       add_filter( 'mwai_task_cleanup_discussions', [ $this, 'handle_cleanup_task' ], 10, 2 );
     }
@@ -63,6 +56,7 @@ class Meow_MWAI_Modules_Discussions {
   }
 
   public function can_delete_discussion( $request ) {
+    $this->check_db();
     $params = $request->get_json_params();
     $chatIds = isset( $params['chatIds'] ) ? $params['chatIds'] : null;
     $userId = get_current_user_id();
@@ -412,6 +406,7 @@ class Meow_MWAI_Modules_Discussions {
 
   public function rest_discussions_delete_admin( $request ) {
     try {
+      $this->check_db();
       $params = $request->get_json_params();
       $chatsIds = $params['chatIds'];
       if ( is_array( $chatsIds ) ) {
@@ -431,6 +426,7 @@ class Meow_MWAI_Modules_Discussions {
 
   public function rest_discussions_delete( $request ) {
     try {
+      $this->check_db();
       $params = $request->get_json_params();
       $chatIds = isset( $params['chatIds'] ) ? $params['chatIds'] : null;
 
@@ -551,6 +547,7 @@ class Meow_MWAI_Modules_Discussions {
       $botId = $customId;
     }
     $newMessage = isset( $params['newMessage'] ) ? $params['newMessage'] : $query->get_message();
+    $shortcutName = isset( $params['shortcutName'] ) ? $params['shortcutName'] : null;
 
     // If there are images, add them to the message for display purposes
     $attachments = method_exists( $query, 'getAttachments' ) ? $query->getAttachments() : [];
@@ -597,7 +594,12 @@ class Meow_MWAI_Modules_Discussions {
 
     if ( $chat ) {
       $chat->messages = json_decode( $chat->messages );
-      $chat->messages[] = [ 'role' => 'user', 'content' => $newMessage ];
+      $userMessage = [ 'role' => 'user', 'content' => $newMessage ];
+      if ( $shortcutName ) {
+        $userMessage['shortcutName'] = $shortcutName;
+        $userMessage['shortcutPrompt'] = $query->get_message();
+      }
+      $chat->messages[] = $userMessage;
       $chat->messages[] = [ 'role' => 'assistant', 'content' => $rawText, 'extra' => $messageExtra ];
       $chat->messages = json_encode( $chat->messages );
 
@@ -622,7 +624,12 @@ class Meow_MWAI_Modules_Discussions {
       if ( !empty( $startSentence ) ) {
         $messages[] = [ 'role' => 'assistant', 'content' => $startSentence ];
       }
-      $messages[] = [ 'role' => 'user', 'content' => $newMessage ];
+      $userMessage = [ 'role' => 'user', 'content' => $newMessage ];
+      if ( $shortcutName ) {
+        $userMessage['shortcutName'] = $shortcutName;
+        $userMessage['shortcutPrompt'] = $query->get_message();
+      }
+      $messages[] = $userMessage;
       $messages[] = [ 'role' => 'assistant', 'content' => $rawText, 'extra' => $messageExtra ];
       $chat = [
         'userId' => $userId,
@@ -725,6 +732,13 @@ class Meow_MWAI_Modules_Discussions {
     if ( $this->db_check ) {
       return true;
     }
+
+    // Per-module version check: skip SHOW TABLES if already verified for this version.
+    if ( get_option( 'mwai_db_version_discussions' ) === MWAI_VERSION ) {
+      $this->db_check = true;
+      return true;
+    }
+
     $this->db_check = !(
       strtolower( $this->wpdb->get_var( "SHOW TABLES LIKE '$this->table_chats'" ) )
           != strtolower( $this->table_chats )
@@ -735,6 +749,10 @@ class Meow_MWAI_Modules_Discussions {
         strtolower( $this->wpdb->get_var( "SHOW TABLES LIKE '$this->table_chats'" ) )
             != strtolower( $this->table_chats )
       );
+    }
+
+    if ( $this->db_check ) {
+      update_option( 'mwai_db_version_discussions', MWAI_VERSION, true );
     }
 
     return $this->db_check;
