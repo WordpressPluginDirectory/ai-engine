@@ -5,7 +5,7 @@ Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 3.4.5
+Stable tag: 3.4.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,7 +25,7 @@ For developers: [internal APIs](https://ai.thehiddendocs.com/php-functions/), [R
 
 Feeling overwhelmed? 🤪 Start simple: Create a chatbot. Then connect [Claude Code](https://ai.thehiddendocs.com/mcp/mcp-server-claude-code/), [Claude](https://ai.thehiddendocs.com/mcp/mcp-server-claude/), [ChatGPT](https://ai.thehiddendocs.com/mcp/mcp-server-chatgpt/), or [OpenClaw](https://openclaw.com/) through MCP, giving AI direct access to your site. Add [SEO Engine](https://wordpress.org/plugins/seo-engine/) and watch it manage SEO in ways you never imagined. You can even connect AI Engine to multiple WordPress sites and manage them all through conversation.
 
-You'll be having a blast before you've explored everything.
+You'll be having a blast before you've explored everything. You'll probably spot bits of AI Engine in plenty of other AI plugins, code and UI alike. Flattering, really... or fishy? 🤣 But only AI Engine keeps pushing forward with real care for its community, a drive toward perfection, and the patience to get the details right.
 
 == Core Modules ==
 
@@ -263,6 +263,62 @@ Start with the [Basics guide](https://ai.thehiddendocs.com/basics/) for installa
 Report security vulnerabilities through the [Patchstack Vulnerability Disclosure Program](https://patchstack.com/database/vdp/9e5fbbbc-964a-4204-8bc0-198f21284efd).
 
 == Changelog ==
+
+= 3.4.8 (2026/05/09) =
+* Fix: Resolved OpenAI Responses API "No tool output found" errors during chained recursive tool calls and static-only turns. Static-skip is now disabled for Responses API because every `function_call` must be answered.
+* Add: Custom OpenAI-compatible provider for Ollama, LM Studio, vLLM, llama.cpp, LocalAI, and similar servers.
+* Add: Built-in xAI/Grok provider with dynamic model fetching and fallback support.
+* Add: Insights retention setting with daily cleanup for old log rows. Defaults to Never.
+* Add: Embedding chunk metadata: source, partIndex, and partTotal, exposed through `mwai_embeddings_vector_metadata` for Pinecone, Qdrant, Chroma, and OpenAI Vector Store. PDF imports can now use the filename as the chunk title, and Modify Embedding can edit the new fields.
+* Add: Code Engine static/dynamic Behavior now applies to Callable function snippets, skipping AI feedback when all calls are static.
+* Update: Reworked onboarding with a default OpenAI environment, Knowledge provider chooser, one-click OpenAI vector store creation, no-key welcome message, and AI Assistant enabled by default.
+* Update: Reworked Pro license management with a Modify License flow for Re-Validate, Modify, and Remove actions.
+* Update: Hardened MCP handling by releasing PHP session locks, using proper trash hooks, deduplicating cache busts, enforcing `confirm_write` for non-read SQL, and purging LiteSpeed/WP Rocket caches after post writes.
+* Update: Usage widget preferences for Price/Units/Queries and Daily/Monthly now persist across reloads.
+* Update: Query and Reply tabs now point users to Settings > Others > Insights when data is unavailable.
+* Fix: Managed-mode WP AI Client and AI Engine integrations now satisfy WordPress 7 AI plugin credential requirements, preventing false rejections for Ollama, OpenRouter, Mistral, Perplexity, and Replicate.
+* Fix: Removed redundant vector-DB addon initialization to prevent idle "OpenAI Vector Store ID is not configured" logs.
+* Fix: Resolved PHP 8.4 nullable-parameter deprecations in query and MCP helpers.
+* Fix: ChatML base now supports string-shaped `error` fields in API responses.
+* Update: Removed the legacy snippet-vault fallback and unused per-environment usage field.
+
+= 3.4.7 (2026/04/25) =
+* Add: GPT-5.5, GPT Image 2, and Claude Opus 4.7 to the model lists.
+* Update: Refreshed default fallback models to GPT-5.4 and GPT-5-mini, and marked several upcoming OpenAI shutdowns as deprecated (gpt-5-chat-latest, gpt-4.1-nano, o3-mini, gpt-realtime-mini, gpt-image-1, sora-2, sora-2-pro).
+* Update: Major UI/UX updates! I hope you'll enjoy them, otherwise... let me know! 😊
+* Add: New Environments panel on the Dashboard with brand-colored rows, smart setup messages, and warnings for missing or deprecated default models.
+* Fix: MCP write helpers (wp_alter_post, wp_update_post) were silently stripping backslashes from Unicode escapes.
+* Add: Live timer on the Image Generator "Generating..." row so progress is visible.
+* Fix: Auto-open is now skipped on mobile so a fullscreen chatbot no longer hijacks the screen on page load.
+* Fix: AI Forms not rendering with their theme CSS when embedded via a synced Pattern.
+* Add: Split print-to-PDF into its own toggle, moved behind a new "More options..." modal in Appearance settings.
+* Update: Redesigned the Usage and Activity widgets with compact CSS-only stacked bars grouped by provider.
+* Fix: Oversized embedding inputs are now caught before they hit OpenAI's 8192-token limit.
+* Add: System-prompt hint for Anthropic's code_execution tool so Claude uses the sandbox instead of refusing.
+* Update: Switched chatbot and form shortcode displays to the NekoShortcode component.
+* Update: Functions section now appears as soon as the model supports it.
+
+= 3.4.6 (2026/04/15) =
+* Add: Print-to-PDF button next to the copy icon on the last AI message, allowing export of the full conversation via the browser's Save as PDF dialog.
+* Add: Retention setting for discussions cleanup under Settings > Chatbot > Discussions, with a `mwai_discussions_retention_days` filter for overrides.
+* Fix: Chatbot auto-scroll no longer fights users who scroll up during streaming.
+* Fix: AI Form and Chatbot blocks no longer save as "Unsupported" placeholders when used in patterns created via Appearance > Editor.
+* Fix: Hardened chatbot parameter processing so non-string values no longer crash the frontend with "trim is not a function".
+* Fix: (Hotfix) Two mobile chatbot issues — keyboard pushing header and messages off-screen, and ChatGPT theme's submit button stretching into an oval below the input pill.
+* Fix: Blocks with line breaks breaking after save in the Forms editor.
+* Fix: REST MCP tools failing schema validation by forwarding nested JSON Schema fields (items, enum, default, etc.) from WordPress REST arg definitions.
+* Fix: NekoUI dropdowns rendering broken inside Gutenberg block iframes.
+* Fix: Temperature settings missing for Anthropic models in chatbot params.
+* Fix: `ai.formReply` filter firing on every stream chunk instead of only once when the reply is complete.
+* Update: Removed DALL-E and migrated existing defaults to gpt-image-1.
+* Update: Bumped the discussions messages column from TEXT to MEDIUMTEXT.
+* Update: Persisted the Query Mode and Expert Mode toggles in the Knowledge tab via localStorage.
+* Update: Simplified `estimate_tokens` to a single-argument signature and added multi-file support to assistant queries.
+* Update: Opus 4.6 and Sonnet 4.6 context window updated to 1M tokens.
+* 🎵 Discuss with others about Ai Engine on [the Discord](https://discord.gg/bHDGh38).
+* 🌴 Keep us motivated with [a little review here](https://wordpress.org/support/plugin/ai-engine/reviews/). Thank you!
+* 🥰 If you want to help us, check our [Patreon](https://www.patreon.com/meowapps). Thank you!
+* 🚀 [Click here](https://trello.com/b/8U9SdiMy/ai-engine-feature-requests) to vote for the features you want the most.
 
 = 3.4.5 (2026/03/22) =
 * Fix: Ensure additional CSS classes set in the block inspector.

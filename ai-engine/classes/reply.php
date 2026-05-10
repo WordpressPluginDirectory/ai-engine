@@ -273,7 +273,6 @@ class Meow_MWAI_Reply implements JsonSerializable {
 
         // It's url/image
         else if ( isset( $choice['url'] ) ) {
-          // TODO: DALL-E 2 and 3 were using URLs, but now they are using b64_json (gpt-image-1 kind of enforced it)
           $url = trim( $choice['url'] );
           $this->results[] = $url;
           $this->result = $url;
@@ -289,7 +288,7 @@ class Meow_MWAI_Reply implements JsonSerializable {
             $expiry = 1 * HOUR_IN_SECONDS; // 1 hour for temporary images
           }
           else {
-            // Use the user's AI-generated image settings (same as DALL-E uses)
+            // Use the user's AI-generated image settings
             $localDownload = $mwai_core->get_option( 'image_local_download' );
             $expiry = (int) $mwai_core->get_option( 'image_expires_download' );
           }

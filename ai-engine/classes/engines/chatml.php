@@ -63,7 +63,6 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     }
     if ( $this->envType === 'azure' ) {
       $this->azureDeployments = isset( $env['deployments'] ) ? $env['deployments'] : [];
-      $this->azureDeployments[] = [ 'model' => 'dall-e', 'name' => 'dall-e' ];
     }
   }
 
@@ -419,34 +418,13 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
       $model = $query->model;
       $resolution = !empty( $query->resolution ) ? $query->resolution : '1024x1024';
       $body = [
+        'model' => $model,
         'prompt' => $query->message,
         'n' => $query->maxResults,
         'size' => $resolution,
+        'quality' => 'high',
+        'moderation' => 'low',
       ];
-
-      // TODO: Let's clean this up; with a better Query Image class.
-      // https://platform.openai.com/docs/api-reference/images/create#images-create-quality
-
-      if ( strpos( $model, 'gpt-image' ) === 0 ) {
-        // GPT Image models (token-based pricing)
-        $body['model'] = $model; // Use the actual model name
-        $body['quality'] = 'high';
-        $body['moderation'] = 'low';
-      }
-      else {
-        // DALL-E models (per-image pricing)
-        $body['response_format'] = 'b64_json';
-        if ( $model === 'dall-e-3' ) {
-          $body['model'] = 'dall-e-3';
-        }
-        if ( $model === 'dall-e-3-hd' ) {
-          $body['model'] = 'dall-e-3';
-          $body['quality'] = 'hd';
-        }
-        if ( !empty( $query->style ) && strpos( $model, 'dall-e-3' ) === 0 ) {
-          $body['style'] = $query->style;
-        }
-      }
       return $body;
     }
   }
@@ -1079,6 +1057,22 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
   }
 
   public function run_embedding_query( $query ) {
+    // Pre-validate token count against the embedding model's limit.
+    // OpenAI embedding models (text-embedding-3-small/large, ada-002) all cap
+    // at 8192 input tokens; sending a longer chunk yields an opaque
+    // "Invalid 'input': maximum context length is 8192 tokens" error. Count
+    // locally via tiktoken (bundled) so we fail with a clear message up front.
+    $embedding_max_tokens = apply_filters( 'mwai_embedding_max_tokens', 8192, $query->model );
+    if ( !empty( $query->message ) && $embedding_max_tokens > 0 ) {
+      $token_count = Meow_MWAI_Core::estimate_tokens( $query->message, $query->model );
+      if ( $token_count > $embedding_max_tokens ) {
+        throw new Exception( sprintf(
+          'Embedding input is %d tokens, exceeds the %d-token limit for %s. Split this entry into smaller chunks and try again.',
+          $token_count, $embedding_max_tokens, $query->model
+        ) );
+      }
+    }
+
     $body = $this->build_body( $query );
     $url = $this->build_url( $query );
     $headers = $this->build_headers( $query );
@@ -1367,7 +1361,7 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     $reply->set_usage_accuracy( 'estimated' );
   }
 
-  // Request to DALL-E API
+  // Request to the OpenAI Images API (gpt-image models, token-based pricing)
   public function run_image_query( $query, $streamCallback = null ) {
     $body = $this->build_body( $query );
     $url = $this->build_url( $query );
@@ -1377,44 +1371,20 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     try {
       $res = $this->run_query( $url, $options );
       $data = $res['data'];
-      $choices = [];
       $choices = $data['data'];
       $reply = new Meow_MWAI_Reply( $query );
       $model = $query->model;
-      $resolution = !empty( $query->resolution ) ? $query->resolution : '1024x1024';
 
-      // Image models use two different pricing models:
-      // 1. Token-based (gpt-image-1, gpt-image-1-mini): API returns usage.input_tokens and usage.output_tokens
-      //    Price: (input_tokens × $10 + output_tokens × $40) / 1M
-      // 2. Per-image (DALL-E): API returns no usage data, price based on resolution
-      //    Price: Fixed per image (e.g., $0.040 for 1024x1024)
-
-      if ( isset( $data['usage'] ) ) {
-        // Token-based model (gpt-image-1, gpt-image-1-mini)
-        $usage = $data['usage'];
-
-        // IMPORTANT: OpenAI Images API uses 'input_tokens' and 'output_tokens',
-        // not 'prompt_tokens' and 'completion_tokens' like the Chat API
-        $promptTokens = $usage['input_tokens'] ?? $usage['prompt_tokens'] ?? 0;
-        $completionTokens = $usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0;
-
-        // Record token usage for statistics tracking
-        // Note: Price calculation happens in get_price() method, not here
-        $this->core->record_tokens_usage( $model, $promptTokens, $completionTokens );
-
-        // Set usage data with token info and accuracy level
-        $usage['queries'] = 1;
-        $usage['accuracy'] = 'tokens';
-
-        $reply->set_usage( $usage );
-        $reply->set_usage_accuracy( $usage['accuracy'] );
-      }
-      else {
-        // Per-image model (DALL-E): No token data, use resolution-based pricing
-        $usage = $this->core->record_images_usage( $model, $resolution, $query->maxResults );
-        $reply->set_usage( $usage );
-        $reply->set_usage_accuracy( isset( $usage['accuracy'] ) ? $usage['accuracy'] : 'estimated' );
-      }
+      // gpt-image models always return usage with input/output tokens
+      // (Images API uses 'input_tokens'/'output_tokens', not 'prompt_tokens'/'completion_tokens')
+      $usage = $data['usage'] ?? [];
+      $promptTokens = $usage['input_tokens'] ?? $usage['prompt_tokens'] ?? 0;
+      $completionTokens = $usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0;
+      $this->core->record_tokens_usage( $model, $promptTokens, $completionTokens );
+      $usage['queries'] = 1;
+      $usage['accuracy'] = 'tokens';
+      $reply->set_usage( $usage );
+      $reply->set_usage_accuracy( 'tokens' );
 
       $reply->set_choices( $choices );
       $reply->set_type( 'images' );
@@ -1463,40 +1433,17 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
       $choices = $data['data'];
       $reply = new Meow_MWAI_Reply( $query );
       $model = $query->model;
-      $resolution = !empty( $query->resolution ) ? $query->resolution : '1024x1024';
 
-      // Image models use two different pricing models:
-      // 1. Token-based (gpt-image-1, gpt-image-1-mini): API returns usage.input_tokens and usage.output_tokens
-      //    Price: (input_tokens × $10 + output_tokens × $40) / 1M
-      // 2. Per-image (DALL-E): API returns no usage data, price based on resolution
-      //    Price: Fixed per image (e.g., $0.040 for 1024x1024)
-
-      if ( isset( $data['usage'] ) ) {
-        // Token-based model (gpt-image-1, gpt-image-1-mini)
-        $usage = $data['usage'];
-
-        // IMPORTANT: OpenAI Images API uses 'input_tokens' and 'output_tokens',
-        // not 'prompt_tokens' and 'completion_tokens' like the Chat API
-        $promptTokens = $usage['input_tokens'] ?? $usage['prompt_tokens'] ?? 0;
-        $completionTokens = $usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0;
-
-        // Record token usage for statistics tracking
-        // Note: Price calculation happens in get_price() method, not here
-        $this->core->record_tokens_usage( $model, $promptTokens, $completionTokens );
-
-        // Set usage data with token info and accuracy level
-        $usage['queries'] = 1;
-        $usage['accuracy'] = 'tokens';
-
-        $reply->set_usage( $usage );
-        $reply->set_usage_accuracy( $usage['accuracy'] );
-      }
-      else {
-        // Per-image model (DALL-E): No token data, use resolution-based pricing
-        $usage = $this->core->record_images_usage( $model, $resolution, $query->maxResults );
-        $reply->set_usage( $usage );
-        $reply->set_usage_accuracy( isset( $usage['accuracy'] ) ? $usage['accuracy'] : 'estimated' );
-      }
+      // gpt-image models always return usage with input/output tokens
+      // (Images API uses 'input_tokens'/'output_tokens', not 'prompt_tokens'/'completion_tokens')
+      $usage = $data['usage'] ?? [];
+      $promptTokens = $usage['input_tokens'] ?? $usage['prompt_tokens'] ?? 0;
+      $completionTokens = $usage['output_tokens'] ?? $usage['completion_tokens'] ?? 0;
+      $this->core->record_tokens_usage( $model, $promptTokens, $completionTokens );
+      $usage['queries'] = 1;
+      $usage['accuracy'] = 'tokens';
+      $reply->set_usage( $usage );
+      $reply->set_usage_accuracy( 'tokens' );
 
       $reply->set_choices( $choices );
       $reply->set_type( 'images' );
@@ -1527,14 +1474,23 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
   */
 
   // Check if there are errors in the response from OpenAI, and throw an exception if so.
+  // OpenAI uses { error: { message: ... } }; some compatible providers (xAI, etc.) use a
+  // plain string in the error field — handle both shapes.
   protected function handle_response_errors( $data ) {
-    if ( isset( $data['error'] ) && !empty( $data['error'] ) ) {
-      $message = $data['error']['message'];
-      if ( preg_match( '/API key provided(: .*)\./', $message, $matches ) ) {
-        $message = str_replace( $matches[1], '', $message );
-      }
-      throw new Exception( $message );
+    if ( !isset( $data['error'] ) || empty( $data['error'] ) ) {
+      return;
     }
+    $err = $data['error'];
+    if ( is_array( $err ) ) {
+      $message = $err['message'] ?? json_encode( $err );
+    }
+    else {
+      $message = (string) $err;
+    }
+    if ( preg_match( '/API key provided(: .*)\./', $message, $matches ) ) {
+      $message = str_replace( $matches[1], '', $message );
+    }
+    throw new Exception( $message );
   }
 
   public function list_files( $purposeFilter = null ) {
@@ -2106,41 +2062,26 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     $models = $this->get_models();
     foreach ( $models as $currentModel ) {
       if ( $currentModel['model'] === $modelFamily ) {
-        if ( $currentModel['type'] === 'image' ) {
-          if ( !$resolution ) {
-            Meow_MWAI_Logging::warn( '(OpenAI) Image models require a resolution.' );
-            return null;
+        if ( $finetune ) {
+          if ( isset( $currentModel['finetune']['price'] ) ) {
+            $currentModel['price'] = $currentModel['finetune']['price'];
           }
-          else {
-            foreach ( $currentModel['resolutions'] as $r ) {
-              if ( $r['name'] == $resolution ) {
-                return $r['price'] * $outUnits;
-              }
-            }
+          else if ( isset( $currentModel['finetune']['in'] ) ) {
+            $currentModel['price'] = [
+              'in' => $currentModel['finetune']['in'],
+              'out' => $currentModel['finetune']['out']
+            ];
           }
         }
-        else {
-          if ( $finetune ) {
-            if ( isset( $currentModel['finetune']['price'] ) ) {
-              $currentModel['price'] = $currentModel['finetune']['price'];
-            }
-            else if ( isset( $currentModel['finetune']['in'] ) ) {
-              $currentModel['price'] = [
-                'in' => $currentModel['finetune']['in'],
-                'out' => $currentModel['finetune']['out']
-              ];
-            }
-          }
-          $inPrice = $currentModel['price'];
-          $outPrice = $currentModel['price'];
-          if ( is_array( $currentModel['price'] ) ) {
-            $inPrice = $currentModel['price']['in'];
-            $outPrice = $currentModel['price']['out'];
-          }
-          $inTotalPrice = $inPrice * $currentModel['unit'] * $inUnits;
-          $outTotalPrice = $outPrice * $currentModel['unit'] * $outUnits;
-          return $inTotalPrice + $outTotalPrice;
+        $inPrice = $currentModel['price'];
+        $outPrice = $currentModel['price'];
+        if ( is_array( $currentModel['price'] ) ) {
+          $inPrice = $currentModel['price']['in'];
+          $outPrice = $currentModel['price']['out'];
         }
+        $inTotalPrice = $inPrice * $currentModel['unit'] * $inUnits;
+        $outTotalPrice = $outPrice * $currentModel['unit'] * $outUnits;
+        return $inTotalPrice + $outTotalPrice;
       }
     }
     Meow_MWAI_Logging::warn( "(OpenAI) Invalid model ($modelFamily)." );
@@ -2160,24 +2101,11 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
       return $this->calculate_price( $model, $inUnits, $outUnits, null, $finetune );
     }
     else if ( is_a( $query, 'Meow_MWAI_Query_Image' ) || is_a( $query, 'Meow_MWAI_Query_EditImage' ) ) {
-      // Image models have two different pricing approaches:
-      // - Token-based (gpt-image-1, gpt-image-1-mini): Billed by input/output tokens like text models
-      // - Per-image (DALL-E): Billed by image count and resolution
-
-      // Check if this is a token-based model by looking for token data in the reply
-      if ( isset( $reply->usage['total_tokens'] ) && $reply->usage['total_tokens'] > 0 ) {
-        // Token-based pricing: Use actual token counts from API response
-        // IMPORTANT: Images API uses 'input_tokens'/'output_tokens', not 'prompt_tokens'/'completion_tokens'
-        $inUnits = $reply->usage['input_tokens'] ?? $reply->usage['prompt_tokens'] ?? 0;
-        $outUnits = $reply->usage['output_tokens'] ?? $reply->usage['completion_tokens'] ?? 0;
-        // Pass null for resolution since token-based models don't use it
-        return $this->calculate_price( $model, $inUnits, $outUnits, null, $finetune );
-      }
-
-      // Per-image pricing: Use image count and resolution
-      $units = $query->maxResults;
-      $resolution = $query->resolution;
-      return $this->calculate_price( $model, 0, $units, $resolution, $finetune );
+      // gpt-image models are billed by input/output tokens like text models.
+      // IMPORTANT: Images API uses 'input_tokens'/'output_tokens', not 'prompt_tokens'/'completion_tokens'
+      $inUnits = $reply->usage['input_tokens'] ?? $reply->usage['prompt_tokens'] ?? 0;
+      $outUnits = $reply->usage['output_tokens'] ?? $reply->usage['completion_tokens'] ?? 0;
+      return $this->calculate_price( $model, $inUnits, $outUnits, null, $finetune );
     }
     else if ( is_a( $query, 'Meow_MWAI_Query_Transcribe' ) ) {
       $model = 'whisper';

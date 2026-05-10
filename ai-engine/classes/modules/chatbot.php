@@ -1,7 +1,7 @@
 <?php
 
 // Params for the chatbot (front and server)
-define( 'MWAI_CHATBOT_FRONT_PARAMS', [ 'id', 'customId', 'aiName', 'userName', 'guestName', 'aiAvatar', 'userAvatar', 'guestAvatar', 'aiAvatarUrl', 'userAvatarUrl', 'guestAvatarUrl', 'textSend', 'textClear', 'imageUpload', 'fileUpload', 'multiUpload', 'maxUploads', 'fileUploads', 'fileSearch', 'allowedMimeTypes', 'mode', 'textInputPlaceholder', 'textInputMaxLength', 'textCompliance', 'startSentence', 'localMemory', 'themeId', 'window', 'icon', 'iconText', 'iconTextDelay', 'iconAlt', 'iconPosition', 'centerOpen', 'width', 'maxHeight', 'openDelay', 'iconBubble', 'windowAnimation', 'fullscreen', 'copyButton', 'headerSubtitle', 'popupTitle', 'containerType', 'headerType', 'messagesType', 'inputType', 'footerType', 'talkMode' ] );
+define( 'MWAI_CHATBOT_FRONT_PARAMS', [ 'id', 'customId', 'aiName', 'userName', 'guestName', 'aiAvatar', 'userAvatar', 'guestAvatar', 'aiAvatarUrl', 'userAvatarUrl', 'guestAvatarUrl', 'textSend', 'textClear', 'imageUpload', 'fileUpload', 'multiUpload', 'maxUploads', 'fileUploads', 'fileSearch', 'allowedMimeTypes', 'mode', 'textInputPlaceholder', 'textInputMaxLength', 'textCompliance', 'startSentence', 'localMemory', 'themeId', 'window', 'icon', 'iconText', 'iconTextDelay', 'iconAlt', 'iconPosition', 'centerOpen', 'width', 'maxHeight', 'openDelay', 'iconBubble', 'windowAnimation', 'fullscreen', 'copyButton', 'pdfButton', 'headerSubtitle', 'popupTitle', 'containerType', 'headerType', 'messagesType', 'inputType', 'footerType', 'talkMode' ] );
 
 define( 'MWAI_CHATBOT_SERVER_PARAMS', [ 'id', 'envId', 'scope', 'mode', 'contentAware', 'context', 'startSentence', 'embeddingsEnvId', 'embeddingsIndex', 'embeddingsNamespace', 'assistantId', 'instructions', 'resolution', 'voice', 'talkMode', 'model', 'temperature', 'maxTokens', 'contextMaxLength', 'maxResults', 'apiKey', 'functions', 'mcpServers', 'tools', 'historyStrategy', 'previousResponseId', 'parentBotId', 'crossSite', 'promptId', 'promptVariables', 'reasoningEffort', 'verbosity' ] );
 
@@ -1144,7 +1144,7 @@ class Meow_MWAI_Modules_Chatbot {
     // Parameters that support HTML content
     $htmlParams = ['textCompliance'];
     // Boolean parameters that need special handling
-    $booleanParams = ['window', 'copyButton', 'fullscreen', 'localMemory', 'iconBubble', 'centerOpen',
+    $booleanParams = ['window', 'copyButton', 'pdfButton', 'fullscreen', 'localMemory', 'iconBubble', 'centerOpen',
       'imageUpload', 'fileUpload', 'multiUpload', 'fileSearch'];
 
     foreach ( MWAI_CHATBOT_FRONT_PARAMS as $param ) {
@@ -1239,7 +1239,7 @@ class Meow_MWAI_Modules_Chatbot {
       'themeId',  // Theme selection
       'window', 'icon', 'iconText', 'iconTextDelay', 'iconAlt', 'iconPosition',  // Window/icon settings
       'centerOpen', 'width', 'openDelay', 'iconBubble', 'windowAnimation', 'fullscreen',  // Window behavior
-      'copyButton', 'headerSubtitle', 'popupTitle',  // UI features
+      'copyButton', 'pdfButton', 'headerSubtitle', 'popupTitle',  // UI features
       'containerType', 'headerType', 'messagesType', 'inputType', 'footerType'  // UI style variants
     ];
 

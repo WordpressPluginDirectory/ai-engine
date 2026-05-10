@@ -530,17 +530,11 @@ class Meow_MWAI_Engines_OpenAI extends Meow_MWAI_Engines_ChatML {
       // Usage tracking is handled differently in the streaming response
     }
     else if ( $query instanceof Meow_MWAI_Query_Image ) {
-      // For image generation, we can use the integrated approach
-      if ( strpos( $query->model, 'gpt-image' ) === 0 ) {
-        $body['tools'] = [[
-          'type' => 'image_generation'
-        ]];
-        $body['input'] = $query->get_message();
-      }
-      else {
-        // Fallback to old API for DALL-E models
-        return $this->build_body( $query, $streamCallback );
-      }
+      // gpt-image models use the integrated image_generation tool
+      $body['tools'] = [[
+        'type' => 'image_generation'
+      ]];
+      $body['input'] = $query->get_message();
     }
 
     // Debug logging for feedback queries

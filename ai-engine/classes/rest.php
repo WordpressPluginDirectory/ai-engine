@@ -1614,7 +1614,28 @@ class Meow_MWAI_Rest {
       $templates_option = get_option( 'mwai_templates', [] );
       if ( !is_array( $templates_option ) ) {
         update_option( 'mwai_templates', [] );
+        $templates_option = [];
       }
+
+      // Migration: DALL-E was removed (deprecated by OpenAI). Move templates to gpt-image-1.5.
+      // TODO: Remove after 2027-04 (1 year after the shutdown on 2026-05-12).
+      $deprecated = [ 'dall-e', 'dall-e-2', 'dall-e-3', 'dall-e-3-hd' ];
+      $migrated = false;
+      foreach ( $templates_option as &$group ) {
+        if ( !empty( $group['templates'] ) && is_array( $group['templates'] ) ) {
+          foreach ( $group['templates'] as &$template ) {
+            if ( isset( $template['model'] ) && in_array( $template['model'], $deprecated, true ) ) {
+              $template['model'] = MWAI_FALLBACK_MODEL_IMAGES;
+              $migrated = true;
+            }
+          }
+        }
+      }
+      unset( $group, $template );
+      if ( $migrated ) {
+        update_option( 'mwai_templates', $templates_option );
+      }
+
       $categories = array_column( $templates_option, 'category' );
       $index = array_search( $category, $categories );
       $templates = [];
@@ -1961,12 +1982,15 @@ class Meow_MWAI_Rest {
       $params = $request->get_json_params();
       $title = isset( $params['title'] ) ? $params['title'] : 'Untitled Form';
 
-      $post_data = [
+      // wp_insert_post expects slashed data - it calls wp_unslash() internally, which would
+      // otherwise strip backslashes from block-comment JSON escapes (e.g. \n → n) and corrupt
+      // the stored blocks.
+      $post_data = wp_slash( [
         'post_title' => $title,
         'post_content' => '',
         'post_status' => 'draft',
         'post_type' => 'mwai_form'
-      ];
+      ] );
 
       $post_id = wp_insert_post( $post_data );
 
@@ -2019,7 +2043,10 @@ class Meow_MWAI_Rest {
         $post_data['post_status'] = $params['status'];
       }
 
-      $result = wp_update_post( $post_data );
+      // wp_update_post expects slashed data - it calls wp_unslash() internally, which would
+      // otherwise strip backslashes from block-comment JSON escapes (e.g. \n → n) and break
+      // Gutenberg blocks on reload.
+      $result = wp_update_post( wp_slash( $post_data ) );
 
       if ( is_wp_error( $result ) ) {
         return $this->create_rest_response( [ 'success' => false, 'message' => $result->get_error_message() ], 500 );
