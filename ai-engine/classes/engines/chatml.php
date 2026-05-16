@@ -422,9 +422,14 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
         'prompt' => $query->message,
         'n' => $query->maxResults,
         'size' => $resolution,
-        'quality' => 'high',
         'moderation' => 'low',
       ];
+      // Only forward 'quality' when the caller (or final_checks) resolved one.
+      // Letting the API default decide ('auto' for gpt-image-*) keeps costs predictable
+      // and avoids forcing 'high' on every request.
+      if ( !empty( $query->quality ) ) {
+        $body['quality'] = $query->quality;
+      }
       return $body;
     }
   }
@@ -1523,6 +1528,7 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     return preg_replace( '/-\d{4}-\d{2}-\d{2}$/', '', $model );
   }
 
+  // TODO: Remove every list_finetunes / cancel_finetune / delete_finetune / run_finetune method below after 2027-02 (OpenAI ends fine-tune job creation on 2027-01-06). The `finetunes` env keys in init.php and the `finetune` key on every entry in constants/models.php go with them.
   public function list_deleted_finetunes( $envId = null, $legacy = false ) {
     $finetunes = $this->list_finetunes( $legacy );
     $deleted = [];
@@ -2005,6 +2011,7 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
 
   public function get_models() {
     $models = apply_filters( 'mwai_openai_models', MWAI_OPENAI_MODELS );
+    // TODO: Drop the fine-tune injection loop below after 2027-02 (OpenAI ends fine-tune job creation on 2027-01-06).
     $finetunes = !empty( $this->env['finetunes'] ) ? $this->env['finetunes'] : [];
     foreach ( $finetunes as $finetune ) {
       if ( empty( $finetune['status'] ) || $finetune['status'] !== 'succeeded' ) {
@@ -2057,6 +2064,7 @@ class Meow_MWAI_Engines_ChatML extends Meow_MWAI_Engines_Core {
     }
   }
 
+  // TODO: After 2027-02 (OpenAI ends fine-tune job creation on 2027-01-06), drop the $finetune branch from calculate_price() and the finetune-detection block in get_price().
   private function calculate_price( $modelFamily, $inUnits, $outUnits, $resolution = null, $finetune = false ) {
     $modelFamily = self::get_model_without_release_date( $modelFamily );
     $models = $this->get_models();

@@ -125,6 +125,7 @@ define( 'MWAI_OPTIONS', [
   'module_moderation' => false,
   'module_statistics' => false,
   'statistics_retention_days' => 'Never',
+  // TODO: Remove module_finetunes after 2027-02 (OpenAI ends fine-tune job creation on 2027-01-06).
   'module_finetunes' => false,
   'module_embeddings' => false,
   'module_transcription' => false,
@@ -167,6 +168,7 @@ define( 'MWAI_OPTIONS', [
       'name' => 'OpenAI',
       'type' => 'openai',
       'apikey' => '',
+      // TODO: Drop the four finetunes* keys after 2027-02 (OpenAI ends fine-tune job creation on 2027-01-06).
       'finetunes' => [],
       'finetunes_deleted' => [],
       'legacy_finetunes' => [],
@@ -185,6 +187,7 @@ define( 'MWAI_OPTIONS', [
   'ai_vision_default_model' => 'gpt-5-mini',
   'ai_images_default_env' => null,
   'ai_images_default_model' => 'gpt-image-1.5',
+  'ai_images_default_quality' => null,
   'ai_audio_default_env' => null,
   'ai_audio_default_model' => 'whisper-1',
   'ai_json_default_env' => null,
