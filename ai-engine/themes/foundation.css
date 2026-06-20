@@ -293,8 +293,6 @@
   flex: 1 1 auto;
   max-height: var(--mwai-maxHeight);
   min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.05);
 }
 .mwai-foundation-theme .mwai-conversation::-webkit-scrollbar {
   width: 8px;
@@ -314,6 +312,10 @@
 }
 .mwai-foundation-theme .mwai-conversation::-webkit-scrollbar-thumb:active {
   background: rgba(255, 255, 255, 0.3);
+}
+.mwai-foundation-theme .mwai-conversation {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.05);
 }
 .mwai-foundation-theme .mwai-conversation.mwai-terminal .mwai-terminal-line {
   line-height: 1.5;
@@ -555,12 +557,14 @@
   margin: 0;
   overflow: hidden;
   min-height: inherit;
-  padding-left: calc(var(--mwai-spacing) / 2);
-  line-height: var(--mwai-lineHeight);
 }
 .mwai-foundation-theme .mwai-input .mwai-input-text textarea:focus {
   outline: none;
   box-shadow: none;
+}
+.mwai-foundation-theme .mwai-input .mwai-input-text textarea {
+  padding-left: calc(var(--mwai-spacing) / 2);
+  line-height: var(--mwai-lineHeight);
 }
 .mwai-foundation-theme .mwai-input .mwai-input-text textarea:focus {
   outline: none;
@@ -1463,6 +1467,17 @@
 .mwai-foundation-theme .mwai-file-upload-icon {
   margin-bottom: -3px;
 }
+.mwai-foundation-theme .mwai-spin {
+  animation: mwai-spin 1s linear infinite;
+}
+@keyframes mwai-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
 .mwai-foundation-theme .mwai-terminal {
   --mwai-terminal-active-color: var(--mwai-fontColor);
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, Menlo, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -1478,8 +1493,6 @@
   flex: 1 1 auto;
   min-height: 0;
   padding-bottom: calc(var(--mwai-spacing) * 1.25);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
 }
 .mwai-foundation-theme .mwai-terminal:focus {
   outline: none;
@@ -1563,6 +1576,10 @@
 }
 .mwai-foundation-theme .mwai-terminal .mwai-terminal-cursor.mwai-terminal-cursor-inactive {
   opacity: 0.35;
+}
+.mwai-foundation-theme .mwai-terminal {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
 }
 .mwai-foundation-theme .mwai-terminal::-webkit-scrollbar {
   width: 8px;
@@ -1735,13 +1752,15 @@
   content: " ";
   cursor: pointer;
   position: absolute;
-  height: 13px;
-  width: 13px;
-  border: 1.2px solid var(--mwai-headerColor);
+  height: 20px;
+  width: 20px;
+  background-color: var(--mwai-headerColor);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='butt' stroke-linejoin='miter'%3E%3Cpath d='M3 9V3h6'/%3E%3Cpath d='M15 3h6v6'/%3E%3Cpath d='M21 15v6h-6'/%3E%3Cpath d='M9 21H3v-6'/%3E%3C/svg%3E") no-repeat center/contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='butt' stroke-linejoin='miter'%3E%3Cpath d='M3 9V3h6'/%3E%3Cpath d='M15 3h6v6'/%3E%3Cpath d='M21 15v6h-6'/%3E%3Cpath d='M9 21H3v-6'/%3E%3C/svg%3E") no-repeat center/contain;
 }
 .mwai-foundation-theme.mwai-window .mwai-header .mwai-buttons .mwai-resize-button:hover:before {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
 }
 .mwai-foundation-theme.mwai-window .mwai-header .mwai-buttons .mwai-close-button {
   justify-content: center;
@@ -1844,12 +1863,14 @@
   margin-bottom: 0px;
 }
 .mwai-foundation-theme.mwai-window.mwai-fullscreen .mwai-header .mwai-buttons .mwai-resize-button:before {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='butt' stroke-linejoin='miter'%3E%3Cpath d='M8 3V8H3'/%3E%3Cpath d='M21 8H16V3'/%3E%3Cpath d='M3 16H8V21'/%3E%3Cpath d='M16 21V16H21'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='butt' stroke-linejoin='miter'%3E%3Cpath d='M8 3V8H3'/%3E%3Cpath d='M21 8H16V3'/%3E%3Cpath d='M3 16H8V21'/%3E%3Cpath d='M16 21V16H21'/%3E%3C/svg%3E");
 }
 .mwai-foundation-theme.mwai-window.mwai-fullscreen .mwai-header .mwai-buttons .mwai-resize-button:hover:before {
-  width: 13px;
-  height: 13px;
+  width: 22px;
+  height: 22px;
 }
 .mwai-foundation-theme.mwai-fullscreen:not(.mwai-window) {
   position: fixed;
@@ -1868,9 +1889,6 @@
   margin: 0;
   z-index: 999999;
   background-color: var(--mwai-backgroundSecondaryColor);
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
 }
 .mwai-foundation-theme.mwai-fullscreen:not(.mwai-window) .mwai-header {
   border-radius: 0;
@@ -1901,6 +1919,11 @@
 }
 .mwai-foundation-theme.mwai-fullscreen:not(.mwai-window) .mwai-body .mwai-files {
   flex: 0 0 auto;
+}
+.mwai-foundation-theme.mwai-fullscreen:not(.mwai-window) {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 .mwai-foundation-theme.mwai-fullscreen:not(.mwai-window) .mwai-window-box {
   width: 100%;
@@ -1940,7 +1963,6 @@
   margin: 0;
   z-index: 999999;
   background-color: var(--mwai-backgroundSecondaryColor);
-  transform: none !important;
 }
 .mwai-foundation-theme.mwai-fullscreen.mwai-window.mwai-open .mwai-header {
   border-radius: 0;
@@ -1971,6 +1993,9 @@
 }
 .mwai-foundation-theme.mwai-fullscreen.mwai-window.mwai-open .mwai-body .mwai-files {
   flex: 0 0 auto;
+}
+.mwai-foundation-theme.mwai-fullscreen.mwai-window.mwai-open {
+  transform: none !important;
 }
 .mwai-foundation-theme.mwai-fullscreen.mwai-window.mwai-open .mwai-window-box {
   width: 100%;
@@ -2459,6 +2484,10 @@
   line-height: 1.2;
   font-weight: 500;
   height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 .mwai-foundation-theme .mwai-realtime .mwai-controls.mwai-hold-to-talk-mode .mwai-push-to-talk:hover:not(:disabled) {
   background: var(--mwai-backgroundPrimaryColor);
@@ -2497,8 +2526,6 @@
   overflow-x: hidden;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  scrollbar-width: thin;
-  scrollbar-color: var(--mwai-backgroundHeaderColor) transparent;
 }
 .mwai-foundation-theme .mwai-realtime .mwai-last-transcript::-webkit-scrollbar {
   width: 6px;
@@ -2513,6 +2540,10 @@
 }
 .mwai-foundation-theme .mwai-realtime .mwai-last-transcript::-webkit-scrollbar-thumb:hover {
   background: var(--mwai-primaryColor);
+}
+.mwai-foundation-theme .mwai-realtime .mwai-last-transcript {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mwai-backgroundHeaderColor) transparent;
 }
 .mwai-foundation-theme .mwai-realtime .mwai-statistics {
   display: grid;

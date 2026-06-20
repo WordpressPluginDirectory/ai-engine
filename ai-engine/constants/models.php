@@ -278,7 +278,8 @@ define( 'MWAI_OPENAI_MODELS', [
     'maxCompletionTokens' => 128000,
     'maxContextualTokens' => 400000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity'],
+    // Shutdown: December 10, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity', 'deprecated'],
     'tools' => ['web_search', 'image_generation', 'file_search', 'code_interpreter'],
     'params' => [
       'reasoning' => ['none', 'minimal', 'low', 'medium', 'high'],
@@ -304,7 +305,8 @@ define( 'MWAI_OPENAI_MODELS', [
     'maxCompletionTokens' => 128000,
     'maxContextualTokens' => 400000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity'],
+    // Shutdown: December 10, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity', 'deprecated'],
     'tools' => ['web_search', 'image_generation', 'file_search', 'code_interpreter'],
     'params' => [
       'reasoning' => ['none', 'minimal', 'low', 'medium', 'high'],
@@ -330,7 +332,8 @@ define( 'MWAI_OPENAI_MODELS', [
     'maxCompletionTokens' => 128000,
     'maxContextualTokens' => 400000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity'],
+    // Shutdown: December 10, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity', 'deprecated'],
     'tools' => ['web_search', 'image_generation', 'file_search', 'code_interpreter'],
     'params' => [
       'reasoning' => ['none', 'minimal', 'low', 'medium', 'high'],
@@ -382,7 +385,8 @@ define( 'MWAI_OPENAI_MODELS', [
     'maxCompletionTokens' => 272000,
     'maxContextualTokens' => 400000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity'],
+    // Shutdown: December 10, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'json', 'responses', 'mcp', 'reasoning', 'verbosity', 'deprecated'],
     'tools' => ['web_search', 'image_generation', 'file_search', 'code_interpreter'],
     'params' => [
       'reasoning' => ['none', 'minimal', 'low', 'medium', 'high'],
@@ -724,7 +728,8 @@ define( 'MWAI_OPENAI_MODELS', [
     ],
     'unit' => 1 / 1000000,
     'finetune' => false,
-    'tags' => ['core', 'image', 'image-edit', 'responses']
+    // Shutdown: December 1, 2026.
+    'tags' => ['core', 'image', 'image-edit', 'responses', 'deprecated']
   ],
   [
     'model' => 'gpt-image-1',
@@ -797,7 +802,8 @@ define( 'MWAI_OPENAI_MODELS', [
     ],
     'unit' => 1 / 1000000,
     'finetune' => false,
-    'tags' => ['core', 'image', 'image-edit', 'responses']
+    // Shutdown: December 1, 2026.
+    'tags' => ['core', 'image', 'image-edit', 'responses', 'deprecated']
   ],
   /*
     Sora 2
@@ -941,6 +947,42 @@ define( 'MWAI_OPENAI_MODELS', [
 
 define( 'MWAI_ANTHROPIC_MODELS', [
   [
+    'model' => 'claude-fable-5',
+    'name' => 'Claude Fable 5',
+    'family' => 'claude-5',
+    'features' => ['completion'],
+    'price' => [
+      'in' => 10.00,
+      'out' => 50.00,
+    ],
+    'type' => 'token',
+    'unit' => 1 / 1000000,
+    'maxCompletionTokens' => 128000,
+    'maxContextualTokens' => 1000000,
+    'finetune' => false,
+    // Adaptive thinking is always on (no disabled mode, no manual budget, no
+    // assistant prefill). Our engine never sends those, so no special handling.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'no-temperature', 'latest'],
+    'tools' => ['code_interpreter', 'thinking']
+  ],
+  [
+    'model' => 'claude-opus-4-8',
+    'name' => 'Claude Opus 4.8',
+    'family' => 'claude-4',
+    'features' => ['completion'],
+    'price' => [
+      'in' => 5.00,
+      'out' => 25.00,
+    ],
+    'type' => 'token',
+    'unit' => 1 / 1000000,
+    'maxCompletionTokens' => 128000,
+    'maxContextualTokens' => 1000000,
+    'finetune' => false,
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'no-temperature', 'latest'],
+    'tools' => ['code_interpreter', 'thinking']
+  ],
+  [
     'model' => 'claude-opus-4-7',
     'name' => 'Claude Opus 4.7',
     'family' => 'claude-4',
@@ -954,7 +996,7 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 128000,
     'maxContextualTokens' => 1000000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'no-temperature', 'latest'],
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'no-temperature'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
@@ -1056,7 +1098,8 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 32000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp'],
+    // Deprecated by Anthropic: retires on the Claude API on August 5, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'deprecated'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
@@ -1073,7 +1116,8 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 32000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp'],
+    // Deprecated by Anthropic: retires on the Claude API on August 5, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'deprecated'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
@@ -1090,7 +1134,7 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 32000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp'],
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'deprecated'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
@@ -1107,7 +1151,8 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 32000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'latest'],
+    // Deprecated by Anthropic: retires on the Claude API on June 15, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'deprecated'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
@@ -1124,7 +1169,7 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 64000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp'],
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'deprecated'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [
@@ -1141,7 +1186,8 @@ define( 'MWAI_ANTHROPIC_MODELS', [
     'maxCompletionTokens' => 64000,
     'maxContextualTokens' => 200000,
     'finetune' => false,
-    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'latest'],
+    // Deprecated by Anthropic: retires on the Claude API on June 15, 2026.
+    'tags' => ['core', 'chat', 'vision', 'files', 'functions', 'reasoning', 'mcp', 'deprecated'],
     'tools' => ['code_interpreter', 'thinking']
   ],
   [

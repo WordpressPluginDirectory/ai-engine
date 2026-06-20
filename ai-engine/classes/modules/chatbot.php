@@ -124,13 +124,14 @@ class Meow_MWAI_Modules_Chatbot {
     ] );
   }
 
-  public function basics_security_check( $botId, $customId, $newMessage, $newFileId ) {
+  public function basics_security_check( $botId, $customId, $newMessage, $newFileId, $newFileIds = [] ) {
     if ( !$botId && !$customId ) {
       Meow_MWAI_Logging::warn( 'The query was rejected - no botId nor id was specified.' );
       return false;
     }
 
-    if ( $newFileId ) {
+    // An empty message is acceptable when files are attached (single or multi upload).
+    if ( $newFileId || !empty( $newFileIds ) ) {
       return true;
     }
 
@@ -224,7 +225,7 @@ class Meow_MWAI_Modules_Chatbot {
       }
     }
 
-    if ( !$this->basics_security_check( $botId, $customId, $newMessage, $newFileId ) ) {
+    if ( !$this->basics_security_check( $botId, $customId, $newMessage, $newFileId, $newFileIds ) ) {
       return $this->create_rest_response( [
         'success' => false,
         'message' => apply_filters( 'mwai_ai_exception', 'Sorry, your query has been rejected.' )
@@ -1045,7 +1046,15 @@ class Meow_MWAI_Modules_Chatbot {
       'botId' => ( $customId && $customId !== '' ) ? null : sanitize_text_field( $botId ),
       'customId' => ( $customId && $customId !== '' ) ? sanitize_text_field( $customId ) : null,
       'userData' => $this->core->get_user_data(),
-      'sessionId' => $this->core->get_session_id(),
+      // For logged-out users we deliberately do NOT embed a sessionId at HTML
+      // render time. Page caches (WP Rocket, Cloudflare, Varnish, etc.) and
+      // multi-backend setups would otherwise freeze one sessionId into the
+      // cached markup and serve it to every visitor — collapsing per-visitor
+      // rate limits, file ownership, and stats. The frontend fetches a fresh
+      // sessionId via /start_session on first interaction, and the server
+      // always derives session from the mwai_session_id cookie anyway
+      // (Query_Base::__construct + inject_params ignore empty client values).
+      'sessionId' => is_user_logged_in() ? $this->core->get_session_id() : null,
       // IMPORTANT: REST nonce handling differs by user state:
       // - Logged-in users: get_nonce() returns a user-specific nonce created in current session context
       // - Logged-out users: get_nonce() returns null, they'll fetch via /start_session endpoint
